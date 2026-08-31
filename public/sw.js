@@ -138,11 +138,14 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // Open / Focus existing client window
+  // Open / Focus existing client window and navigate to target URL
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url.includes('/app') && 'focus' in client) {
+        if ('focus' in client) {
+          if (client.url && !client.url.endsWith(targetUrl) && 'navigate' in client) {
+            client.navigate(targetUrl);
+          }
           return client.focus();
         }
       }

@@ -5,6 +5,8 @@ import { Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+import { formatCutoffDisplay } from '@/lib/utils/dates';
+
 export interface CountdownPillProps {
   urgency?: 'normal' | 'warning' | 'urgent' | 'closed';
   formattedTime?: string;
@@ -21,6 +23,7 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
   const isClosed = urgency === 'closed';
   const isUrgent = urgency === 'urgent';
   const isWarning = urgency === 'warning';
+  const displayCutoff = formatCutoffDisplay(cutoffTime);
 
   return (
     <div
@@ -49,7 +52,7 @@ export const CountdownPill: React.FC<CountdownPillProps> = ({
       <Clock className="w-3.5 h-3.5 shrink-0 opacity-70" />
 
       <span className="font-mono tabular-nums font-bold">
-        {isClosed ? `Selection Closed (${cutoffTime})` : `${formattedTime} remaining`}
+        {isClosed ? `Selection Closed (${displayCutoff})` : `${formattedTime} remaining (closes ${displayCutoff})`}
       </span>
     </div>
   );

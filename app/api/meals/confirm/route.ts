@@ -3,7 +3,8 @@ import { getSession } from '@/lib/auth/session';
 import { MealConfirmSchema } from '@/lib/validators';
 import { MealService } from '@/lib/meals/meal-service';
 import { OfficeService } from '@/lib/offices/office-service';
-import { getCutoffCountdown, isWorkingDay } from '@/lib/utils/dates';
+import { getCutoffCountdown, isWorkingDay, formatCutoffDisplay } from '@/lib/utils/dates';
+import { realtimeBus } from '@/lib/realtime/realtime-service';
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,15 +41,23 @@ export async function POST(req: NextRequest) {
 
     // Check cutoff time if confirming for tomorrow or today
     const countdown = getCutoffCountdown(office.cutoff_time, office.timezone);
-    // If the cutoff is passed and user is trying to modify today's/tomorrow's meal
     if (countdown.isPassed && session.role !== 'ADMIN') {
+      const displayCutoff = formatCutoffDisplay(office.cutoff_time);
       return NextResponse.json(
-        { error: `Meal confirmation closed at ${office.cutoff_time}. Please contact your office admin for late changes.` },
+        { error: `Meal selection closed at ${displayCutoff}. Please contact your office admin for late changes.` },
         { status: 403 }
       );
     }
 
     const meal = await MealService.confirmMeal(session.userId, officeId, date, mealType, 'MANUAL');
+
+    // Broadcast real-time event
+    realtimeBus.broadcast(officeId, 'MEAL_UPDATED', {
+      date,
+      userId: session.userId,
+      mealType,
+      status: meal.status,
+    });
 
     return NextResponse.json({
       success: true,

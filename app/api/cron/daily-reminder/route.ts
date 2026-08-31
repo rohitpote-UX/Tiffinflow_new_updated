@@ -25,15 +25,12 @@ export async function GET(req: NextRequest) {
     );
     if (isHoliday) continue;
 
-    const subs = localDb.push_subscriptions.filter((s) => s.office_id === office.id);
-    for (const sub of subs) {
-      await NotificationService.sendPush(sub, {
-        title: '🍱 Tomorrow’s Lunch is Open!',
-        body: `Choose your meal before ${office.cutoff_time}. Veg (₹${office.veg_price}) or Non-Veg (₹${office.non_veg_price})?`,
-        data: { url: '/app', type: 'daily-reminder', date: targetDate },
-      });
-      totalSent++;
-    }
+    const { sentCount } = await NotificationService.notifyMealSelectionOpened(
+      office.id,
+      targetDate,
+      office.cutoff_time
+    );
+    totalSent += sentCount;
   }
 
   return NextResponse.json({

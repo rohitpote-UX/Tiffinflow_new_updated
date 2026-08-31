@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { requireAdmin } from '@/lib/auth/session';
 import { OfficeService } from '@/lib/offices/office-service';
 import { AuditService } from '@/lib/audit/audit-service';
+import { realtimeBus } from '@/lib/realtime/realtime-service';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const { date } = await req.json();
     if (!date) {
@@ -31,12 +29,24 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    // Broadcast realtime event
+    realtimeBus.broadcast(session.officeId, 'ORDER_FINALIZED', {
+      date,
+      totalMeals: snapshot.total_meals,
+      totalRevenue: snapshot.total_revenue,
+      vegCount: snapshot.veg_count,
+      nonVegCount: snapshot.non_veg_count,
+    });
+
     return NextResponse.json({
       success: true,
       snapshot,
       message: `✓ Lunch order finalized for ${date}! (${snapshot.total_meals} total meals)`,
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Finalize order error:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }

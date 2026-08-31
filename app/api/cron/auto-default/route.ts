@@ -23,20 +23,18 @@ export async function GET(req: NextRequest) {
 
     totalDefaulted += defaultedCount;
 
-    // Send notifications to affected users informing them transparently
+    // Send clean auto-default notifications to affected users
     for (const userId of affectedUsers) {
-      const subs = localDb.push_subscriptions.filter((s) => s.user_id === userId);
       const mem = localDb.memberships.find(
         (m) => m.user_id === userId && m.office_id === office.id
       );
-      const prefText = mem?.default_preference === 'always-non-veg' ? '🍗 Non-Veg' : '🥦 Veg';
-
-      for (const sub of subs) {
-        await NotificationService.sendPush(sub, {
-          title: `${prefText} Automatically Selected`,
-          body: `Tomorrow's lunch was auto-selected based on your preference (${mem?.default_preference}).`,
-          data: { url: '/app', type: 'auto-default', date: targetDate },
-        });
+      if (mem) {
+        await NotificationService.notifyAutoDefault(
+          userId,
+          office.id,
+          targetDate,
+          mem.default_preference
+        );
       }
     }
   }

@@ -11,6 +11,7 @@ import {
   LogOut,
   Loader2,
 } from 'lucide-react';
+import { formatCutoffDisplay } from '@/lib/utils/dates';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +22,8 @@ export default function EmployeeProfilePage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [defaultPref, setDefaultPref] = useState<'flexible' | 'always-veg' | 'always-non-veg'>('flexible');
+  const [savingPref, setSavingPref] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -44,8 +47,25 @@ export default function EmployeeProfilePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleUpdatePref = (newPref: 'flexible' | 'always-veg' | 'always-non-veg') => {
+  const handleUpdatePref = async (newPref: 'flexible' | 'always-veg' | 'always-non-veg') => {
     setDefaultPref(newPref);
+    setSavingPref(true);
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultPreference: newPref }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setToastMessage('✓ Dietary preference saved');
+        setTimeout(() => setToastMessage(''), 3000);
+      }
+    } catch {
+      // rollback if error
+    } finally {
+      setSavingPref(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -142,6 +162,13 @@ export default function EmployeeProfilePage() {
         </div>
       </Card>
 
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Office & Join Code Card */}
       {office && (
         <Card className="p-5 border border-surface-200/80 shadow-card flex flex-col gap-3">
@@ -164,7 +191,7 @@ export default function EmployeeProfilePage() {
             </div>
             <div className="flex justify-between">
               <span className="text-surface-500">Daily Cutoff:</span>
-              <strong className="text-surface-900 tabular-nums">{office.cutoff_time}</strong>
+              <strong className="text-surface-900 tabular-nums">{formatCutoffDisplay(office.cutoff_time)}</strong>
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-surface-200">
               <span className="text-surface-500">Team Join Code:</span>

@@ -15,10 +15,11 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
-import { formatCurrency, formatDisplayDate, formatFullDate } from '@/lib/utils/dates';
+import { formatCurrency, formatDisplayDate, formatFullDate, formatCutoffDisplay, formatTime12h } from '@/lib/utils/dates';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState<any>(null);
@@ -56,10 +57,24 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
+  // Real-time synchronization
+  const { isConnected } = useRealtimeSync({
+    onReconcile: loadDashboard,
+    onEvent: (event) => {
+      if (
+        event.type === 'MEAL_UPDATED' ||
+        event.type === 'PRICE_UPDATED' ||
+        event.type === 'CUTOFF_UPDATED' ||
+        event.type === 'ORDER_FINALIZED' ||
+        event.type === 'MEAL_CANCELLED'
+      ) {
+        loadDashboard();
+      }
+    },
+  });
+
   useEffect(() => {
     loadDashboard();
-    const interval = setInterval(loadDashboard, 15000);
-    return () => clearInterval(interval);
   }, [loadDashboard]);
 
   const handleRemindPending = async () => {
@@ -310,7 +325,7 @@ export default function AdminDashboardPage() {
                 Action Required: {stats.pendingCount} employee(s) haven’t responded
               </h3>
               <p className="text-xs text-amber-400/80 mt-0.5">
-                Send targeted Web Push reminders to pending members before the {office?.cutoffTime} cutoff.
+                Send targeted Web Push reminders to pending members before the {formatCutoffDisplay(office?.cutoffTime)} cutoff.
               </p>
             </div>
           </div>
@@ -371,9 +386,14 @@ export default function AdminDashboardPage() {
               Extending cutoff will broadcast a notification to all pending team members.
             </p>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                New Cutoff Time (24h)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  New Cutoff Time (24h)
+                </label>
+                <span className="text-xs font-bold text-emerald-400">
+                  Preview: {formatTime12h(newCutoff)}
+                </span>
+              </div>
               <input
                 type="text"
                 required

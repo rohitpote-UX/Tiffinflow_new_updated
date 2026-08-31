@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { getSession, requireAdmin } from '@/lib/auth/session';
 import { OfficeService } from '@/lib/offices/office-service';
 import { OfficeSettingsSchema } from '@/lib/validators';
 import { AuditService } from '@/lib/audit/audit-service';
+import { realtimeBus } from '@/lib/realtime/realtime-service';
+import { NotificationService } from '@/lib/notifications/notification-service';
 
 export async function GET() {
   try {
@@ -40,10 +42,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const body = await req.json();
     const parsed = OfficeSettingsSchema.safeParse(body);
@@ -52,6 +51,8 @@ export async function POST(req: NextRequest) {
     }
 
     const updates = parsed.data;
+    const oldOffice = await OfficeService.getOfficeById(session.officeId);
+
     const office = await OfficeService.updateSettings(session.officeId, {
       name: updates.name,
       veg_price: updates.vegPrice,
@@ -71,12 +72,36 @@ export async function POST(req: NextRequest) {
       updates
     );
 
+    // Broadcast real-time events
+    if (oldOffice && (oldOffice.veg_price !== updates.vegPrice || oldOffice.non_veg_price !== updates.nonVegPrice)) {
+      realtimeBus.broadcast(session.officeId, 'PRICE_UPDATED', {
+        vegPrice: updates.vegPrice,
+        nonVegPrice: updates.nonVegPrice,
+      });
+      NotificationService.notifyPriceChange(session.officeId, updates.vegPrice, updates.nonVegPrice).catch(console.warn);
+    }
+
+    if (oldOffice && oldOffice.cutoff_time !== updates.cutoffTime) {
+      realtimeBus.broadcast(session.officeId, 'CUTOFF_UPDATED', {
+        cutoffTime: updates.cutoffTime,
+      });
+    }
+
+    if (oldOffice && JSON.stringify(oldOffice.working_days) !== JSON.stringify(updates.workingDays)) {
+      realtimeBus.broadcast(session.officeId, 'WORKING_DAYS_UPDATED', {
+        workingDays: updates.workingDays,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       message: '✓ Office settings updated successfully!',
       office,
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Office settings update error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

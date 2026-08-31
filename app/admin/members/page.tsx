@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, QrCode, Copy, Check, UserMinus, X, Loader2 } from 'lucide-react';
+import { Users, QrCode, Copy, Check, UserMinus, ShieldCheck, ShieldAlert, X, Loader2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,9 @@ export default function AdminMembersPage() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastError, setToastError] = useState('');
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const loadMembers = useCallback(async () => {
     try {
@@ -46,18 +49,84 @@ export default function AdminMembersPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDeactivate = async (userId: string) => {
-    if (!confirm('Are you sure you want to remove this employee from the office?')) return;
-    await fetch('/api/admin/users', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    });
-    await loadMembers();
+  const handleRoleChange = async (userId: string, targetRole: 'ADMIN' | 'USER', userName: string) => {
+    const actionText = targetRole === 'ADMIN' ? 'promote' : 'demote';
+    if (!confirm(`Are you sure you want to ${actionText} ${userName} to ${targetRole}?`)) return;
+
+    setActionLoadingId(userId);
+    setToastMessage('');
+    setToastError('');
+
+    try {
+      const res = await fetch('/api/admin/users/role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: targetRole }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Failed to update role');
+      }
+
+      setToastMessage(json.message || `✓ Role updated successfully`);
+      setTimeout(() => setToastMessage(''), 4000);
+      await loadMembers();
+    } catch (err: any) {
+      setToastError(err.message || 'Action failed');
+      setTimeout(() => setToastError(''), 4000);
+    } finally {
+      setActionLoadingId(null);
+    }
   };
+
+  const handleDeactivate = async (userId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to remove ${userName} from the office?`)) return;
+    setActionLoadingId(userId);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setToastMessage(`✓ ${userName} removed from office`);
+        setTimeout(() => setToastMessage(''), 3000);
+        await loadMembers();
+      }
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const adminMembers = members.filter((m) => m.role === 'ADMIN');
+  const adminCount = adminMembers.length;
+  const isMaxAdminsReached = adminCount >= 2;
 
   return (
     <div className="flex flex-col gap-6 font-sans">
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="p-4 rounded-2xl bg-emerald-600 text-white text-xs font-bold flex items-center justify-between shadow-button-brand animate-in fade-in">
+          <span>{toastMessage}</span>
+          <button type="button" onClick={() => setToastMessage('')} className="p-1 hover:opacity-80">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {toastError && (
+        <div className="p-4 rounded-2xl bg-red-950/80 border border-red-900 text-red-200 text-xs font-bold flex items-center justify-between shadow-card animate-in fade-in">
+          <span>{toastError}</span>
+          <button type="button" onClick={() => setToastError('')} className="p-1 hover:opacity-80">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
         <div>
@@ -79,30 +148,63 @@ export default function AdminMembersPage() {
         </Button>
       </div>
 
-      {/* Join Code Banner */}
-      <div className="bg-zinc-900 rounded-3xl p-5 sm:p-6 border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card">
-        <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
-            Office Join Code
-          </span>
-          <div className="flex items-center gap-2.5 mt-1.5">
-            <span className="font-mono text-xl font-extrabold text-emerald-400 uppercase tracking-wider bg-zinc-950 px-3.5 py-1 rounded-xl border border-zinc-800">
-              {officeCode}
+      {/* Admin Quota Indicator Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-1 bg-zinc-900 rounded-3xl p-5 border border-zinc-800 flex flex-col justify-between shadow-card">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              Administrators
             </span>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-tactile"
-              title="Copy Code"
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                isMaxAdminsReached ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-300'
+              }`}
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            </button>
+              {adminCount} / 2 Admins {isMaxAdminsReached ? '(Max)' : ''}
+            </span>
           </div>
+
+          <div className="my-3 space-y-1">
+            {adminMembers.map((adm) => (
+              <div key={adm.id} className="flex items-center gap-2 text-xs text-zinc-200 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="truncate">{adm.name}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[11px] text-zinc-500">
+            {isMaxAdminsReached
+              ? 'Maximum 2 office administrators allocated.'
+              : '1 additional administrator slot available.'}
+          </p>
         </div>
 
-        <p className="text-xs text-zinc-400 max-w-sm leading-relaxed">
-          Share this code or QR code with new team members to let them join your office in seconds.
-        </p>
+        {/* Join Code Banner */}
+        <div className="md:col-span-2 bg-zinc-900 rounded-3xl p-5 border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+              Office Join Code
+            </span>
+            <div className="flex items-center gap-2.5 mt-1.5">
+              <span className="font-mono text-xl font-extrabold text-emerald-400 uppercase tracking-wider bg-zinc-950 px-3.5 py-1 rounded-xl border border-zinc-800">
+                {officeCode}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-tactile"
+                title="Copy Code"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+            Share this code or QR code with new team members to let them join your office in seconds.
+          </p>
+        </div>
       </div>
 
       {/* Members Table */}
@@ -129,43 +231,73 @@ export default function AdminMembersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/80 text-zinc-300">
-                {members.map((m) => (
-                  <tr key={m.id} className="hover:bg-zinc-800/40 transition">
-                    <td className="px-5 py-4">
-                      <div className="font-bold text-white text-sm">{m.name}</div>
-                      <div className="text-[11px] text-zinc-500">{m.email}</div>
-                    </td>
-                    <td className="px-5 py-4 text-zinc-400 tabular-nums">{m.phone}</td>
-                    <td className="px-5 py-4">
-                      <span className="capitalize font-semibold text-zinc-200">
-                        {m.defaultPreference}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                          m.role === 'ADMIN'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-zinc-800 text-zinc-400'
-                        }`}
-                      >
-                        {m.role}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      {m.role !== 'ADMIN' && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeactivate(m.id)}
-                          className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-tactile"
-                          title="Remove user from office"
+                {members.map((m) => {
+                  const isAdmin = m.role === 'ADMIN';
+                  const isBusy = actionLoadingId === m.id;
+
+                  return (
+                    <tr key={m.id} className="hover:bg-zinc-800/40 transition">
+                      <td className="px-5 py-4">
+                        <div className="font-bold text-white text-sm">{m.name}</div>
+                        <div className="text-[11px] text-zinc-500">{m.email}</div>
+                      </td>
+                      <td className="px-5 py-4 text-zinc-400 tabular-nums">{m.phone}</td>
+                      <td className="px-5 py-4">
+                        <span className="capitalize font-semibold text-zinc-200">
+                          {m.defaultPreference}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                            isAdmin
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : 'bg-zinc-800 text-zinc-400'
+                          }`}
                         >
-                          <UserMinus className="w-4 h-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          {m.role}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              disabled={isBusy || adminCount <= 1}
+                              onClick={() => handleRoleChange(m.id, 'USER', m.name)}
+                              className="px-2.5 py-1 rounded-xl text-[11px] font-semibold text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={adminCount <= 1 ? 'An office must have at least 1 administrator' : 'Demote to regular user'}
+                            >
+                              Demote
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isBusy || isMaxAdminsReached}
+                              onClick={() => handleRoleChange(m.id, 'ADMIN', m.name)}
+                              className="px-2.5 py-1 rounded-xl text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={isMaxAdminsReached ? 'Maximum 2 administrators limit reached' : 'Promote to administrator'}
+                            >
+                              Make Admin
+                            </button>
+                          )}
+
+                          {!isAdmin && (
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleDeactivate(m.id, m.name)}
+                              className="p-1.5 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-tactile"
+                              title="Remove user from office"
+                            >
+                              <UserMinus className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

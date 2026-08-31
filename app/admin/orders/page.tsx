@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Sparkles, Loader2 } from 'lucide-react';
-import { formatCurrency, formatDisplayDate } from '@/lib/utils/dates';
+import { formatCurrency, formatDisplayDate, formatTime12h } from '@/lib/utils/dates';
 import { Badge } from '@/components/ui/Badge';
+import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -25,10 +26,22 @@ export default function AdminOrdersPage() {
     }
   }, []);
 
+  // Real-time synchronization
+  const { isConnected } = useRealtimeSync({
+    onReconcile: loadOrders,
+    onEvent: (event) => {
+      if (
+        event.type === 'MEAL_UPDATED' ||
+        event.type === 'ORDER_FINALIZED' ||
+        event.type === 'MEAL_CANCELLED'
+      ) {
+        loadOrders();
+      }
+    },
+  });
+
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(loadOrders, 10000);
-    return () => clearInterval(interval);
   }, [loadOrders]);
 
   const filteredOrders = orders.filter((o) => {
@@ -166,13 +179,8 @@ export default function AdminOrdersPage() {
                       <td className="px-5 py-4 font-bold tabular-nums text-white text-sm">
                         {formatCurrency(order.price)}
                       </td>
-                      <td className="px-5 py-4 text-zinc-400 tabular-nums">
-                        {order.confirmedAt
-                          ? new Date(order.confirmedAt).toLocaleTimeString('en-IN', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '—'}
+                      <td className="px-5 py-4 text-zinc-400 tabular-nums font-medium">
+                        {order.confirmedAt ? formatTime12h(order.confirmedAt) : '—'}
                       </td>
                       <td className="px-5 py-4">
                         {order.isAutoDefaulted ? (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Shield, Clock, Loader2 } from 'lucide-react';
-import { formatDisplayDate } from '@/lib/utils/dates';
+import { formatAuditTimestamp } from '@/lib/utils/dates';
 
 export default function AdminAuditPage() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -57,13 +57,8 @@ export default function AdminAuditPage() {
               <tbody className="divide-y divide-zinc-800/80 text-zinc-300">
                 {logs.map((log) => (
                   <tr key={log.id} className="hover:bg-zinc-800/40 transition">
-                    <td className="px-5 py-4 text-zinc-400 whitespace-nowrap tabular-nums">
-                      {new Date(log.created_at).toLocaleString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                    <td className="px-5 py-4 text-zinc-400 whitespace-nowrap tabular-nums font-medium">
+                      {formatAuditTimestamp(log.created_at)}
                     </td>
                     <td className="px-5 py-4">
                       <span className="font-mono text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg">

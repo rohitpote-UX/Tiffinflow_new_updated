@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, Plus, Trash2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { formatCurrency, formatDisplayDate } from '@/lib/utils/dates';
+import { formatCurrency, formatDisplayDate, formatTime12h } from '@/lib/utils/dates';
 import { Button } from '@/components/ui/Button';
 
 const DAYS = [
@@ -204,9 +204,14 @@ export default function AdminSettingsPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-            Daily Cutoff Time (24h format HH:MM)
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+              Daily Cutoff Time (HH:MM format)
+            </label>
+            <span className="text-xs font-bold text-emerald-400">
+              Displays as: {formatTime12h(cutoffTime)}
+            </span>
+          </div>
           <input
             type="text"
             required

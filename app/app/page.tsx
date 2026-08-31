@@ -18,6 +18,7 @@ import { formatCurrency, formatDisplayDate, formatFullDate } from '@/lib/utils/d
 import { CountdownPill } from '@/components/ui/CountdownPill';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { useRealtimeSync } from '@/lib/realtime/useRealtimeSync';
 
 export default function EmployeeLunchPage() {
   const [data, setData] = useState<any>(null);
@@ -28,6 +29,7 @@ export default function EmployeeLunchPage() {
   const [previousMeal, setPreviousMeal] = useState<'veg' | 'non-veg' | 'skip' | null>(null);
   const [undoSeconds, setUndoSeconds] = useState(5);
   const [errorToast, setErrorToast] = useState('');
+  const [realtimeToast, setRealtimeToast] = useState('');
 
   // Fetch today & tomorrow's meal status
   const loadMealData = useCallback(async () => {
@@ -51,10 +53,30 @@ export default function EmployeeLunchPage() {
     }
   }, []);
 
+  // Real-time synchronization hook with automatic state reconciliation
+  const { isConnected } = useRealtimeSync({
+    onReconcile: loadMealData,
+    onEvent: (event) => {
+      if (event.type === 'CUTOFF_UPDATED') {
+        setRealtimeToast(`⏰ Lunch cutoff extended to ${event.payload?.formattedCutoffTime || event.payload?.cutoffTime}`);
+        setTimeout(() => setRealtimeToast(''), 4000);
+        loadMealData();
+      } else if (event.type === 'PRICE_UPDATED') {
+        setRealtimeToast(`💰 Meal prices updated (Veg: ₹${event.payload?.vegPrice})`);
+        setTimeout(() => setRealtimeToast(''), 4000);
+        loadMealData();
+      } else if (event.type === 'MEAL_CANCELLED') {
+        setRealtimeToast(`⚠️ Lunch for tomorrow cancelled: ${event.payload?.reason}`);
+        setTimeout(() => setRealtimeToast(''), 5000);
+        loadMealData();
+      } else if (event.type === 'ORDER_FINALIZED' || event.type === 'HOLIDAY_UPDATED' || event.type === 'WORKING_DAYS_UPDATED') {
+        loadMealData();
+      }
+    },
+  });
+
   useEffect(() => {
     loadMealData();
-    const interval = setInterval(loadMealData, 20000);
-    return () => clearInterval(interval);
   }, [loadMealData]);
 
   // Undo Timer Countdown
@@ -164,6 +186,13 @@ export default function EmployeeLunchPage() {
           </div>
         </div>
       </div>
+
+      {/* Realtime Sync Toast */}
+      {realtimeToast && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2.5 animate-in fade-in shadow-sm">
+          <span>{realtimeToast}</span>
+        </div>
+      )}
 
       {/* Error Toast */}
       {errorToast && (

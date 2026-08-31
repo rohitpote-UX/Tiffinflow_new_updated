@@ -1,9 +1,16 @@
 /**
  * OfficeService — Office configuration, join codes, members, working days, holidays, finalized snapshots
+ * Hardened with strict server-side Admin Access Control (Max 2 Admins per Office & Last-Admin Protection)
  */
 
 import { localDb, Office, OfficeHoliday, User, Membership, FinalizedOrder } from '../db';
+import { AuditService } from '../audit/audit-service';
 import crypto from 'crypto';
+
+export const MAX_ADMINS_PER_OFFICE = 2;
+
+// Simple mutex queue to serialize role changes and prevent race conditions
+let roleMutationLock = Promise.resolve();
 
 export class OfficeService {
   /**
@@ -66,6 +73,120 @@ export class OfficeService {
     }
 
     return result.sort((a, b) => a.user.name.localeCompare(b.user.name));
+  }
+
+  /**
+   * Retrieve active administrators for an office (Max 2)
+   */
+  static async getOfficeAdmins(officeId: string): Promise<
+    Array<{
+      user: User;
+      membership: Membership;
+    }>
+  > {
+    const members = await this.getOfficeMembers(officeId);
+    return members.filter((m) => m.membership.role === 'ADMIN');
+  }
+
+  /**
+   * Promote a member to Admin role with strict server-side validation & concurrency lock:
+   * Rule: Maximum 2 administrators per office
+   */
+  static async promoteMemberToAdmin(
+    officeId: string,
+    actorUserId: string,
+    targetUserId: string
+  ): Promise<{ user: User; membership: Membership }> {
+    return new Promise((resolve, reject) => {
+      roleMutationLock = roleMutationLock.then(async () => {
+        try {
+          const currentAdmins = await this.getOfficeAdmins(officeId);
+          if (currentAdmins.length >= MAX_ADMINS_PER_OFFICE) {
+            throw new Error(`Cannot promote employee: Maximum limit of ${MAX_ADMINS_PER_OFFICE} administrators per office has already been reached.`);
+          }
+
+          const targetMembership = localDb.memberships.find(
+            (m) => m.user_id === targetUserId && m.office_id === officeId && m.is_active
+          );
+          if (!targetMembership) {
+            throw new Error('Target user is not an active member of this office');
+          }
+
+          if (targetMembership.role === 'ADMIN') {
+            const targetUser = localDb.users.find((u) => u.id === targetUserId)!;
+            return resolve({ user: targetUser, membership: targetMembership });
+          }
+
+          const targetUser = localDb.users.find((u) => u.id === targetUserId);
+          if (!targetUser) throw new Error('User not found');
+
+          targetMembership.role = 'ADMIN';
+          targetMembership.updated_at = new Date().toISOString();
+          localDb.save();
+
+          await AuditService.log(
+            officeId,
+            'ADMIN_PROMOTED',
+            'USER',
+            actorUserId,
+            targetUserId,
+            { targetUserName: targetUser.name, targetUserEmail: targetUser.email }
+          );
+
+          resolve({ user: targetUser, membership: targetMembership });
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  }
+
+  /**
+   * Demote an Admin to User role with last-admin protection:
+   * Rule: An office cannot have 0 administrators
+   */
+  static async demoteAdminToUser(
+    officeId: string,
+    actorUserId: string,
+    targetUserId: string
+  ): Promise<{ user: User; membership: Membership }> {
+    return new Promise((resolve, reject) => {
+      roleMutationLock = roleMutationLock.then(async () => {
+        try {
+          const currentAdmins = await this.getOfficeAdmins(officeId);
+          if (currentAdmins.length <= 1) {
+            throw new Error('Cannot remove administrator: An office must have at least one active administrator.');
+          }
+
+          const targetMembership = localDb.memberships.find(
+            (m) => m.user_id === targetUserId && m.office_id === officeId && m.is_active
+          );
+          if (!targetMembership) {
+            throw new Error('Target user is not an active member of this office');
+          }
+
+          const targetUser = localDb.users.find((u) => u.id === targetUserId);
+          if (!targetUser) throw new Error('User not found');
+
+          targetMembership.role = 'USER';
+          targetMembership.updated_at = new Date().toISOString();
+          localDb.save();
+
+          await AuditService.log(
+            officeId,
+            'ADMIN_DEMOTED',
+            'USER',
+            actorUserId,
+            targetUserId,
+            { targetUserName: targetUser.name, targetUserEmail: targetUser.email }
+          );
+
+          resolve({ user: targetUser, membership: targetMembership });
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
   }
 
   /**

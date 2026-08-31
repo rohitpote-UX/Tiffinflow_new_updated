@@ -30,15 +30,14 @@ export async function GET(req: NextRequest) {
     for (const mem of members) {
       const bill = await PaymentService.calculateWeeklyBill(mem.user_id, office.id, currentDate);
       if (bill.totalAmount > 0) {
-        const subs = localDb.push_subscriptions.filter((s) => s.user_id === mem.user_id);
         const formattedAmount = formatCurrency(bill.totalAmount);
-        for (const sub of subs) {
-          await NotificationService.sendPush(sub, {
-            title: '💳 Weekly Lunch Bill Ready',
-            body: `Your bill for this week is ${formattedAmount} (${bill.vegDays} Veg, ${bill.nonVegDays} Non-Veg). Tap to review.`,
-            data: { url: '/app/payments', type: 'weekly-bill' },
-          });
-        }
+        await NotificationService.notifyWeeklyBill(
+          mem.user_id,
+          office.id,
+          formattedAmount,
+          bill.vegDays,
+          bill.nonVegDays
+        );
       }
     }
   }

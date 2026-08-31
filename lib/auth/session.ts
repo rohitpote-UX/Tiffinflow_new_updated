@@ -96,13 +96,20 @@ export async function requireAuth(): Promise<SessionPayload> {
 }
 
 /**
- * Server-side authorization check: Require Admin role
+ * Server-side authorization check: Require Admin role (verified against live database membership)
  */
 export async function requireAdmin(): Promise<SessionPayload> {
   const session = await requireAuth();
-  if (session.role !== 'ADMIN') {
+
+  // Strict live database authorization verification
+  const membership = localDb.memberships.find(
+    (m) => m.user_id === session.userId && m.office_id === session.officeId && m.is_active
+  );
+
+  if (!membership || membership.role !== 'ADMIN') {
     throw new Error('FORBIDDEN');
   }
+
   return session;
 }
 

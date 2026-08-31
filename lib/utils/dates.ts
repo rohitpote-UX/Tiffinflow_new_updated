@@ -1,12 +1,140 @@
 /**
  * Timezone-aware date, time, and currency utilities for BiteBuddy 2.0
  * Default timezone: Asia/Kolkata
+ * Global 12-Hour Time Format Standard
  */
 
 export const DEFAULT_TIMEZONE = process.env.NEXT_PUBLIC_DEFAULT_TIMEZONE || 'Asia/Kolkata';
 
 /**
- * Returns current date string 'YYYY-MM-DD' in specified timezone
+ * Converts a 24h time string (e.g. '19:00', '00:00', '12:00', '07:30') or Date/ISO string
+ * into a standardized 12-hour time format (e.g. '7:00 PM', '12:00 AM', '12:00 PM', '7:30 AM')
+ */
+export function formatTime12h(
+  timeOrDate: string | Date | null | undefined,
+  timezone: string = DEFAULT_TIMEZONE
+): string {
+  if (!timeOrDate) return '—';
+
+  // Case 1: Simple 24h time string like "19:00", "07:30", "12:00", "00:00"
+  if (typeof timeOrDate === 'string' && /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(timeOrDate.trim())) {
+    const [hStr, mStr] = timeOrDate.trim().split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+
+    const period = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12; // 00:xx is 12:xx AM, 12:xx is 12:xx PM
+
+    const formattedM = String(m).padStart(2, '0');
+    return `${h12}:${formattedM} ${period}`;
+  }
+
+  // Case 2: Date object or ISO timestamp string
+  try {
+    const d = typeof timeOrDate === 'string' ? new Date(timeOrDate) : timeOrDate;
+    if (isNaN(d.getTime())) return String(timeOrDate);
+
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return formatter.format(d);
+  } catch {
+    return String(timeOrDate);
+  }
+}
+
+/**
+ * Returns formatted cutoff display string, e.g. "7:00 PM"
+ */
+export function formatCutoffDisplay(
+  cutoffTime24h: string = '19:00',
+  timezone: string = DEFAULT_TIMEZONE
+): string {
+  return formatTime12h(cutoffTime24h, timezone);
+}
+
+/**
+ * Formats full date and 12-hour time in office timezone, e.g. "1 Sep 2026, 7:00 PM"
+ */
+export function formatDateTime12h(
+  dateOrIso: string | Date | null | undefined,
+  timezone: string = DEFAULT_TIMEZONE
+): string {
+  if (!dateOrIso) return '—';
+  try {
+    const d = typeof dateOrIso === 'string' ? new Date(dateOrIso) : dateOrIso;
+    if (isNaN(d.getTime())) return String(dateOrIso);
+
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: timezone,
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return formatter.format(d);
+  } catch {
+    return String(dateOrIso);
+  }
+}
+
+/**
+ * Formats administrative audit trail timestamps:
+ * Examples: "Today · 6:42 PM", "Yesterday · 7:15 PM", "31 Aug · 6:42 PM"
+ */
+export function formatAuditTimestamp(
+  dateOrIso: string | Date | null | undefined,
+  timezone: string = DEFAULT_TIMEZONE
+): string {
+  if (!dateOrIso) return '—';
+  try {
+    const d = typeof dateOrIso === 'string' ? new Date(dateOrIso) : dateOrIso;
+    if (isNaN(d.getTime())) return String(dateOrIso);
+
+    // Get date parts in office timezone
+    const nowFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const todayStr = nowFormatter.format(new Date());
+    const eventDateStr = nowFormatter.format(d);
+
+    const time12h = formatTime12h(d, timezone);
+
+    if (eventDateStr === todayStr) {
+      return `Today · ${time12h}`;
+    }
+
+    // Check if yesterday
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayStr = nowFormatter.format(yesterday);
+    if (eventDateStr === yesterdayStr) {
+      return `Yesterday · ${time12h}`;
+    }
+
+    const dateFormatted = d.toLocaleDateString('en-IN', {
+      timeZone: timezone,
+      day: 'numeric',
+      month: 'short',
+    });
+
+    return `${dateFormatted} · ${time12h}`;
+  } catch {
+    return String(dateOrIso);
+  }
+}
+
+/**
+ * Returns current date string 'YYYY-MM-DD' in specified office timezone
  */
 export function getOfficeCurrentDate(timezone: string = DEFAULT_TIMEZONE): string {
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -19,11 +147,11 @@ export function getOfficeCurrentDate(timezone: string = DEFAULT_TIMEZONE): strin
 }
 
 /**
- * Returns tomorrow's date string 'YYYY-MM-DD' in specified timezone
+ * Returns tomorrow's date string 'YYYY-MM-DD' in specified office timezone
  */
 export function getOfficeTomorrowDate(timezone: string = DEFAULT_TIMEZONE): string {
   const now = new Date();
-  // Add 24 hours
+  // Safe 24-hour advance
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -35,7 +163,7 @@ export function getOfficeTomorrowDate(timezone: string = DEFAULT_TIMEZONE): stri
 }
 
 /**
- * Returns current time string 'HH:MM' in specified timezone (24h)
+ * Returns current time string 'HH:MM' in specified timezone (24h internal)
  */
 export function getOfficeCurrentTime(timezone: string = DEFAULT_TIMEZONE): string {
   const formatter = new Intl.DateTimeFormat('en-GB', {
@@ -59,7 +187,9 @@ export function getCutoffCountdown(
   isPassed: boolean;
   urgency: 'normal' | 'warning' | 'urgent' | 'closed';
   formatted: string;
+  formattedCutoff: string;
 } {
+  const formattedCutoff = formatCutoffDisplay(cutoffTime, timezone);
   try {
     const [cutoffH, cutoffM] = cutoffTime.split(':').map(Number);
     const now = new Date();
@@ -100,6 +230,7 @@ export function getCutoffCountdown(
         isPassed: true,
         urgency: 'closed',
         formatted: 'Closed',
+        formattedCutoff,
       };
     }
 
@@ -122,6 +253,7 @@ export function getCutoffCountdown(
       isPassed: false,
       urgency,
       formatted: `${formattedMinutes}:${formattedSeconds}`,
+      formattedCutoff,
     };
   } catch {
     return {
@@ -130,6 +262,7 @@ export function getCutoffCountdown(
       isPassed: false,
       urgency: 'normal',
       formatted: cutoffTime,
+      formattedCutoff,
     };
   }
 }
@@ -182,7 +315,7 @@ export function getMonthBoundaries(
 }
 
 /**
- * Formats a date string 'YYYY-MM-DD' into human readable format, e.g. "Monday, 31 August"
+ * Formats a date string 'YYYY-MM-DD' into human readable format, e.g. "Mon, 31 Aug"
  */
 export function formatDisplayDate(dateStr: string): string {
   try {

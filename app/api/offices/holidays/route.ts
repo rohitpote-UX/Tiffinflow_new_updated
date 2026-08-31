@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { getSession, requireAdmin } from '@/lib/auth/session';
 import { OfficeService } from '@/lib/offices/office-service';
 import { OfficeHolidaySchema } from '@/lib/validators';
 import { AuditService } from '@/lib/audit/audit-service';
+import { realtimeBus } from '@/lib/realtime/realtime-service';
 
 export async function GET() {
   try {
@@ -21,10 +22,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const body = await req.json();
     const parsed = OfficeHolidaySchema.safeParse(body);
@@ -44,12 +42,20 @@ export async function POST(req: NextRequest) {
       { date, name }
     );
 
+    realtimeBus.broadcast(session.officeId, 'HOLIDAY_UPDATED', {
+      action: 'ADD',
+      holiday,
+    });
+
     return NextResponse.json({
       success: true,
       holiday,
       message: `✓ Holiday "${name}" added for ${date}`,
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Holiday add error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -57,10 +63,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const { holidayId } = await req.json();
     if (!holidayId) {
@@ -68,8 +71,26 @@ export async function DELETE(req: NextRequest) {
     }
 
     await OfficeService.removeHoliday(holidayId);
+
+    await AuditService.log(
+      session.officeId,
+      'HOLIDAY_REMOVED',
+      'OFFICE',
+      session.userId,
+      holidayId,
+      {}
+    );
+
+    realtimeBus.broadcast(session.officeId, 'HOLIDAY_UPDATED', {
+      action: 'REMOVE',
+      holidayId,
+    });
+
     return NextResponse.json({ success: true, message: 'Holiday removed' });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Holiday remove error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Building, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { formatCutoffDisplay } from '@/lib/utils/dates';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
@@ -97,7 +98,7 @@ export default function JoinOfficePage() {
               {office.name}
             </div>
             <p className="mt-2 text-xs text-surface-500">
-              Cutoff time: <span className="font-semibold text-surface-700 tabular-nums">{office.cutoffTime}</span> · Veg: ₹{office.vegPrice} · Non-Veg: ₹{office.nonVegPrice}
+              Cutoff time: <span className="font-semibold text-surface-700 tabular-nums">{formatCutoffDisplay(office.cutoffTime)}</span> · Veg: ₹{office.vegPrice} · Non-Veg: ₹{office.nonVegPrice}
             </p>
           </>
         ) : (
