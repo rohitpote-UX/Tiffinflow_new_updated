@@ -49,7 +49,21 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
 
     if (user) {
-      // Check existing membership
+      // Check if user belongs to a different office
+      const otherActiveMembership = localDb.memberships.find(
+        (m) => m.user_id === user!.id && m.office_id !== office.id && m.is_active
+      );
+      if (otherActiveMembership) {
+        const otherOffice = localDb.offices.find((o) => o.id === otherActiveMembership.office_id);
+        return NextResponse.json(
+          {
+            error: `You are already a member of ${otherOffice?.name || 'another workplace'}. Please contact your administrator to switch workplaces.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Check existing membership in this office
       const existingMem = localDb.memberships.find(
         (m) => m.user_id === user!.id && m.office_id === office.id
       );

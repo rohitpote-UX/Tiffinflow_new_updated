@@ -237,33 +237,62 @@ Step-by-Step Execution:
 7. EMPLOYEE SIGNUP & OFFICE JOINING FLOWS
 ================================================================================
 
-Employees join existing offices through two distinct mechanisms:
+Golden Rule of BiteBuddy Onboarding:
+- CREATE WORKSPACE = ADMIN (Office Owners & Managers creating a new office team)
+- JOIN WORKPLACE = EMPLOYEE (New Employees joining an existing office via Code or QR)
+- SIGN IN = EXISTING USER (Employees and Admins returning to their active accounts)
+
+An employee joining an existing workplace is NEVER shown "Create Office Workspace"
+and is NEVER asked to type the Office / Company Name.
 
 --------------------------------------------------------------------------------
-7.1. Join via Invite Link or QR Code (/join/[code])
+7.1. Dedicated Join Workplace Hub (/join)
 --------------------------------------------------------------------------------
-Route: GET /api/offices/join?code=BITE-XXXX (Fetches office preview)
-       POST /api/offices/join (Submits join request)
-Page:  /join/[code]
-
-Workflow:
-1. Employee opens https://domain.com/join/BITE-7K4P.
-2. Page displays office name, cutoff time (12h format), and meal prices.
-3. Employee submits name, email, phone, password, and dietary preference.
-4. Server validates join code, creates user + membership with role = 'USER'.
-5. Issues JWT session cookie and returns redirectUrl = '/app'.
-6. Client is routed directly to the Employee Meal Selection Dashboard (/app).
-
---------------------------------------------------------------------------------
-7.2. Join via Direct Signup Form (/signup)
---------------------------------------------------------------------------------
-Route: POST /api/auth/signup with role: 'USER' and officeCodeOrName: 'BITE-XXXX'
-Page:  /signup
+Route: GET /api/offices/join?code=BITE-XXXX (Validates join code & returns office preview)
+       POST /api/offices/join (Submits employee profile & joins workplace)
+Page:  /join
 
 Workflow:
-1. Employee fills signup form specifying office join code.
-2. Server verifies office join code, creates USER membership.
-3. Issues JWT session cookie and routes to /app.
+1. Entry:
+   - Employee opens /join on mobile or desktop.
+   - Chooses between "Enter Code" (keyboard) or "Scan QR Code" (in-browser camera).
+
+2. Option A: Enter Join Code:
+   - Types or pastes 8-character code (e.g. BITE-7K4P), automatically formatted.
+   - Clicks "Verify Workplace Code".
+
+3. Option B: Scan QR Code (Mobile-First Camera):
+   - Uses device camera via standard navigator.mediaDevices.getUserMedia / BarcodeDetector.
+   - Points at office lunch poster or admin's screen.
+   - Automatically detects QR code and transitions to verification.
+
+4. Workplace Identification & Name Locking:
+   - Server validates code via GET /api/offices/join?code=...
+   - Screen displays verified office banner:
+     "✓ Verified Workplace: Acme Corporation · Cutoff: 7:00 PM · Role: Employee"
+   - Company name is LOCKED; employee cannot edit or alter company name.
+
+5. Employee Profile Form:
+   - Employee fills: Full Name, Work Email, Phone, Password, Dietary Preference.
+   - Submits form -> POST /api/offices/join.
+
+6. Server-Side Security & Role Assignment:
+   - Server strictly creates user and membership with role = 'USER'.
+   - Ignores any client attempt to supply role = 'ADMIN' or arbitrary officeId.
+   - Checks if user belongs to another office -> Rejects with friendly transfer notice.
+   - If existing member joins same office -> Re-authenticates without duplicating.
+
+7. Immediate Dashboard Landing:
+   - Issues HTTP-only 30-day JWT session cookie.
+   - Immediately redirects to Employee Dashboard (/app) without forcing another login.
+
+--------------------------------------------------------------------------------
+7.2. Direct Invite Link & QR Deep Link (/join/[code])
+--------------------------------------------------------------------------------
+Route: /join/[code] (e.g. /join/BITE-7K4P)
+- Automatically validates the embedded code on mount.
+- Displays locked verified office banner.
+- Employee completes profile and enters /app in seconds.
 
 ================================================================================
 8. LOGIN & SIGN-IN ENGINE

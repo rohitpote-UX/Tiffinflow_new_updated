@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, QrCode, Copy, Check, UserMinus, ShieldCheck, ShieldAlert, X, Loader2 } from 'lucide-react';
+import { Users, QrCode, Copy, Check, UserMinus, ShieldCheck, ShieldAlert, X, Loader2, RefreshCw, Link as LinkIcon } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,8 @@ export default function AdminMembersPage() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [rotatingCode, setRotatingCode] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastError, setToastError] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -47,6 +49,36 @@ export default function AdminMembersPage() {
     navigator.clipboard.writeText(officeCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    const origin = window.location.origin;
+    navigator.clipboard.writeText(`${origin}/join/${officeCode}`);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleRotateCode = async () => {
+    if (!confirm('Generate a new Join Code? Previous invite links will no longer work.')) return;
+    setRotatingCode(true);
+    try {
+      const res = await fetch('/api/admin/invite/rotate', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to rotate join code');
+
+      setOfficeCode(json.joinCode);
+      setToastMessage('✓ New join code generated successfully');
+      setTimeout(() => setToastMessage(''), 3000);
+      const origin = window.location.origin;
+      const joinUrl = `${origin}/join/${json.joinCode}`;
+      const qrUrl = await QRCode.toDataURL(joinUrl, { width: 320, margin: 2 });
+      setQrDataUrl(qrUrl);
+    } catch (err: any) {
+      setToastError(err.message || 'Failed to rotate join code');
+      setTimeout(() => setToastError(''), 4000);
+    } finally {
+      setRotatingCode(false);
+    }
   };
 
   const handleRoleChange = async (userId: string, targetRole: 'ADMIN' | 'USER', userName: string) => {
@@ -184,9 +216,9 @@ export default function AdminMembersPage() {
         <div className="md:col-span-2 bg-zinc-900 rounded-3xl p-5 border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-card">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
-              Office Join Code
+              Employee Invite Code
             </span>
-            <div className="flex items-center gap-2.5 mt-1.5">
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <span className="font-mono text-xl font-extrabold text-emerald-400 uppercase tracking-wider bg-zinc-950 px-3.5 py-1 rounded-xl border border-zinc-800">
                 {officeCode}
               </span>
@@ -194,15 +226,32 @@ export default function AdminMembersPage() {
                 type="button"
                 onClick={handleCopy}
                 className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-tactile"
-                title="Copy Code"
+                title="Copy Join Code"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-tactile"
+                title="Copy Direct Join Link"
+              >
+                {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <LinkIcon className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
+                disabled={rotatingCode}
+                onClick={handleRotateCode}
+                className="p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-amber-400 transition-tactile disabled:opacity-50"
+                title="Rotate / Regenerate Join Code"
+              >
+                <RefreshCw className={`w-4 h-4 ${rotatingCode ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
 
           <p className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-            Share this code or QR code with new team members to let them join your office in seconds.
+            Share this code or QR code with employees to let them join your office in seconds without creating a workspace.
           </p>
         </div>
       </div>

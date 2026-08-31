@@ -336,3 +336,5 @@ export class LocalDatabaseStore {
 }
 
 export const localDb = new LocalDatabaseStore();
+export { prisma } from './prisma';
+export { DbRepository } from './repository';

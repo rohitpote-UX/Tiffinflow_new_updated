@@ -173,11 +173,21 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-surface-500">
-            Don't have an office yet?{' '}
-            <Link href="/signup" className="font-bold text-emerald-700 hover:text-emerald-800">
-              Create a free workspace
-            </Link>
+          {/* Clear Bottom Onboarding Paths */}
+          <div className="mt-6 pt-5 border-t border-surface-100 flex flex-col items-center gap-2.5 text-center text-xs text-surface-500">
+            <div>
+              New employee joining a team?{' '}
+              <Link href="/join" className="font-bold text-emerald-700 hover:text-emerald-800">
+                Join with Code / QR →
+              </Link>
+            </div>
+
+            <div>
+              Setting up a new office?{' '}
+              <Link href="/signup" className="font-bold text-surface-700 hover:text-surface-900">
+                Create Workspace (Admin) →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

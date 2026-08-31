@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
+import { ArrowRight, AlertCircle, Sparkles, Building, Users, ShieldCheck, KeyRound } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
@@ -25,6 +25,7 @@ export default function SignupPage() {
     setPhone('+91 9876543210');
     setOfficeName('TechCorp Bangalore HQ');
     setPassword('password123');
+    setDefaultPreference('flexible');
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -66,7 +67,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-surface-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans selection:bg-emerald-500 selection:text-white">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <Link href="/" className="inline-flex items-center gap-2 mb-6">
+        <Link href="/" className="inline-flex items-center gap-2 mb-4">
           <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-button-brand text-white text-2xl font-bold">
             🍱
           </div>
@@ -75,12 +76,31 @@ export default function SignupPage() {
           Create Office Workspace
         </h2>
         <p className="mt-1 text-xs text-surface-500">
-          Setup BiteBuddy for your office team in under 60 seconds
+          Setup a new BiteBuddy workspace for your company team
         </p>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 sm:px-10 rounded-3xl shadow-card border border-surface-200/80">
+          {/* Employee Callout Banner */}
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <KeyRound className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-amber-950">Are you an Employee?</p>
+                <p className="text-[11px] text-amber-800 leading-snug">
+                  Join your company with an invite code or QR scan.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/join"
+              className="shrink-0 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold text-center transition-tactile shadow-sm"
+            >
+              Join Workplace →
+            </Link>
+          </div>
+
           {/* Quick Demo Fill */}
           <button
             type="button"
@@ -104,6 +124,11 @@ export default function SignupPage() {
           )}
 
           <form className="space-y-4" onSubmit={handleSignup}>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Admin Account Details</span>
+            </div>
+
             <Input
               label="Your Full Name"
               type="text"
@@ -141,7 +166,7 @@ export default function SignupPage() {
             />
 
             <Input
-              label="Create Password (min 4 characters)"
+              label="Create Admin Password"
               type="password"
               required
               minLength={4}
@@ -206,11 +231,21 @@ export default function SignupPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-xs text-surface-500">
-            Already have an account?{' '}
-            <Link href="/login" className="font-bold text-emerald-700 hover:text-emerald-800">
-              Sign in
-            </Link>
+          {/* Bottom Guidance */}
+          <div className="mt-6 pt-5 border-t border-surface-100 flex flex-col items-center gap-2 text-center text-xs text-surface-500">
+            <div>
+              Already have an account?{' '}
+              <Link href="/login" className="font-bold text-emerald-700 hover:text-emerald-800">
+                Sign in
+              </Link>
+            </div>
+
+            <div>
+              Employee joining existing team?{' '}
+              <Link href="/join" className="font-bold text-emerald-700 hover:text-emerald-800">
+                Join with Code / QR →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

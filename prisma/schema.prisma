@@ -1,0 +1,283 @@
+// BiteBuddy 2.0 — Enterprise Database Schema
+// Provider: PostgreSQL via Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  USER
+  OWNER
+  MANAGER
+  FINANCE
+  CATERER
+}
+
+enum DietaryPreference {
+  flexible
+  always_veg
+  always_non_veg
+}
+
+enum MealType {
+  veg
+  non_veg
+  skip
+}
+
+enum MealStatus {
+  confirmed
+  auto_defaulted
+  skipped
+  cancelled
+}
+
+enum MealSource {
+  MANUAL
+  AUTO_DEFAULT
+  ADMIN
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  overdue
+}
+
+// ── Models ────────────────────────────────────────────────────────────
+
+model Office {
+  id                   String   @id @default(uuid())
+  name                 String
+  admin_id             String
+  veg_price            Int      @default(80)
+  non_veg_price        Int      @default(100)
+  cutoff_time          String   @default("19:00") // 24h format e.g. "19:00"
+  timezone             String   @default("Asia/Kolkata")
+  week_start_day       Int      @default(1) // 1 = Monday
+  auto_default_enabled Boolean  @default(true)
+  join_code            String   @unique
+  working_days         Json     @default("[1, 2, 3, 4, 5]")
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  // Relationships
+  memberships      Membership[]
+  meals            Meal[]
+  finalized_orders FinalizedOrder[]
+  payments         Payment[]
+  holidays         OfficeHoliday[]
+  audit_logs       AuditLog[]
+
+  @@index([join_code])
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  phone         String
+  password_hash String
+  photo_url     String?
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relationships
+  memberships            Membership[]
+  meals                  Meal[]
+  payments               Payment[]
+  push_subscriptions     PushSubscription[]
+  notification_logs      NotificationLog[]
+  notification_preference NotificationPreference?
+  password_reset_tokens  PasswordResetToken[]
+
+  @@index([email])
+}
+
+model Membership {
+  id                 String            @id @default(uuid())
+  user_id            String
+  office_id          String
+  role               Role              @default(USER)
+  default_preference DietaryPreference @default(flexible)
+  is_active          Boolean           @default(true)
+  joined_at          DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+
+  // Relationships
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  office Office @relation(fields: [office_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, office_id])
+  @@index([office_id])
+  @@index([user_id])
+  @@index([role])
+}
+
+model Meal {
+  id                String     @id @default(uuid()) // user_id + '_' + date
+  user_id           String
+  office_id         String
+  date              String     // YYYY-MM-DD
+  meal_type         MealType
+  status            MealStatus @default(confirmed)
+  price             Int
+  is_auto_defaulted Boolean    @default(false)
+  meal_source       MealSource @default(MANUAL)
+  confirmed_at      DateTime   @default(now())
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
+
+  // Relationships
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  office Office @relation(fields: [office_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, date])
+  @@index([office_id, date])
+  @@index([user_id])
+  @@index([status])
+}
+
+model FinalizedOrder {
+  id            String   @id @default(uuid()) // office_id + '_' + date
+  office_id     String
+  date          String   // YYYY-MM-DD
+  veg_count     Int      @default(0)
+  non_veg_count Int      @default(0)
+  skip_count    Int      @default(0)
+  total_meals   Int      @default(0)
+  total_revenue Int      @default(0)
+  finalized_by  String   // Admin user_id
+  finalized_at  DateTime @default(now())
+
+  // Relationships
+  office Office @relation(fields: [office_id], references: [id], onDelete: Cascade)
+
+  @@unique([office_id, date])
+  @@index([office_id])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  user_id       String
+  office_id     String
+  amount        Int
+  period_start  String        // YYYY-MM-DD
+  period_end    String        // YYYY-MM-DD
+  status        PaymentStatus @default(pending)
+  marked_paid_by String?
+  paid_at       DateTime?
+  receipt_notes String?
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
+
+  // Relationships
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  office Office @relation(fields: [office_id], references: [id], onDelete: Cascade)
+
+  @@index([office_id, status])
+  @@index([user_id])
+}
+
+model PushSubscription {
+  id         String   @id @default(uuid())
+  user_id    String
+  office_id  String?
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  user_agent String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model NotificationPreference {
+  id                 String   @id @default(uuid())
+  user_id            String   @unique
+  lunch_reminder     Boolean  @default(true)
+  cutoff_warning     Boolean  @default(true)
+  auto_default_alert Boolean  @default(true)
+  payment_reminders  Boolean  @default(true)
+  weekly_summary     Boolean  @default(true)
+  updated_at         DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model NotificationLog {
+  id              String    @id @default(uuid())
+  user_id         String?
+  office_id       String?
+  type            String
+  title           String
+  body            String
+  status          String    @default("sent")
+  idempotency_key String?   @unique
+  failure_reason  String?
+  sent_at         DateTime  @default(now())
+  read_at         DateTime?
+
+  // Relationships
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([office_id])
+  @@index([user_id])
+  @@index([idempotency_key])
+}
+
+model OfficeHoliday {
+  id         String   @id @default(uuid())
+  office_id  String
+  date       String   // YYYY-MM-DD
+  name       String
+  created_at DateTime @default(now())
+
+  // Relationships
+  office Office @relation(fields: [office_id], references: [id], onDelete: Cascade)
+
+  @@unique([office_id, date])
+  @@index([office_id])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  office_id   String
+  user_id     String?
+  action      String
+  entity_type String
+  entity_id   String?
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now())
+
+  // Relationships
+  office Office @relation(fields: [office_id], references: [id], onDelete: Cascade)
+
+  @@index([office_id, created_at])
+}
+
+model PasswordResetToken {
+  token      String   @id
+  user_id    String
+  expires_at DateTime
+
+  // Relationships
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}

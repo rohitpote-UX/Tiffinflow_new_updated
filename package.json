@@ -11,6 +11,7 @@
     "test:simulate": "npx tsx scripts/simulate-50-users.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.4.1",
     "@supabase/supabase-js": "^2.112.4",
     "@tanstack/react-query": "^5.100.14",
     "bcryptjs": "^3.0.3",
@@ -42,6 +43,7 @@
     "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.26",
+    "prisma": "^6.4.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "~6.0.3"

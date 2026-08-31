@@ -93,7 +93,7 @@ export class NotificationService {
     payload: PushPayload,
     maxRetries: number = 3
   ): Promise<{ success: boolean; status: 'SENT' | 'FAILED' | 'EXPIRED'; error?: string }> {
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || subscription.endpoint.startsWith('mock://') || subscription.endpoint.includes('localhost') || subscription.p256dh.startsWith('mock_')) {
       console.log(`[Dev WebPush Mock] [${subscription.user_id}] -> ${payload.title}: ${payload.body}`);
       return { success: true, status: 'SENT' };
     }
