@@ -1,0 +1,41 @@
+{
+  "name": "BiteBuddy — Office Meal Management",
+  "short_name": "BiteBuddy",
+  "description": "Frictionless 1-tap office lunch selection, weekly spend tracking, and caterer coordination.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#16A34A",
+  "orientation": "portrait-primary",
+  "categories": ["food", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Confirm Lunch",
+      "short_name": "Lunch",
+      "description": "Confirm tomorrow's meal in 1 tap",
+      "url": "/app",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Admin Orders",
+      "short_name": "Orders",
+      "description": "View live today orders & head counts",
+      "url": "/admin/orders",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

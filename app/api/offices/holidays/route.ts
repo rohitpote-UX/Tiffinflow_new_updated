@@ -1,0 +1,76 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth/session';
+import { OfficeService } from '@/lib/offices/office-service';
+import { OfficeHolidaySchema } from '@/lib/validators';
+import { AuditService } from '@/lib/audit/audit-service';
+
+export async function GET() {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const holidays = await OfficeService.getHolidays(session.officeId);
+    return NextResponse.json({ success: true, holidays });
+  } catch (err: any) {
+    console.error('Holidays get error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const parsed = OfficeHolidaySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    }
+
+    const { date, name } = parsed.data;
+    const holiday = await OfficeService.addHoliday(session.officeId, date, name);
+
+    await AuditService.log(
+      session.officeId,
+      'HOLIDAY_ADDED',
+      'OFFICE',
+      session.userId,
+      holiday.id,
+      { date, name }
+    );
+
+    return NextResponse.json({
+      success: true,
+      holiday,
+      message: `✓ Holiday "${name}" added for ${date}`,
+    });
+  } catch (err: any) {
+    console.error('Holiday add error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || session.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
+
+    const { holidayId } = await req.json();
+    if (!holidayId) {
+      return NextResponse.json({ error: 'Holiday ID is required' }, { status: 400 });
+    }
+
+    await OfficeService.removeHoliday(holidayId);
+    return NextResponse.json({ success: true, message: 'Holiday removed' });
+  } catch (err: any) {
+    console.error('Holiday remove error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

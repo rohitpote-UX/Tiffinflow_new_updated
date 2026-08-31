@@ -1,0 +1,246 @@
+================================================================================
+TIFFINFLOW / BITEBUDDY — COMPREHENSIVE PROJECT AUDIT & NEXT.JS PWA BLUEPRINT
+================================================================================
+
+1. EXECUTIVE SUMMARY & PRODUCT MISSION
+--------------------------------------------------------------------------------
+BiteBuddy (TiffinFlow) is an end-to-end office meal management platform engineered to eliminate chaotic WhatsApp group polls, spreadsheets, and manual money tracking for daily corporate tiffin / catering services.
+
+The system solves two distinct problems for two core stakeholders:
+  A. Office Employees (Users):
+     - Friction-free 1-tap daily lunch selection (Veg, Non-Veg, Skip) before a cut-off time.
+     - Transparent weekly and monthly expense tracking.
+     - Meal history calendar and eating habit analytics.
+     - Automated daily reminders and cut-off alerts.
+  
+  B. Office Admins / Tiffin Coordinators:
+     - Live order counts (Veg vs Non-Veg vs Skip vs Pending) to place exact bulk caterer orders.
+     - Real-time revenue tracking and payment settlement management.
+     - Automated user auto-defaulting (e.g. flexible, always-veg, always-non-veg).
+     - Instant PDF / Excel report exports and team management.
+
+
+================================================================================
+2. CURRENT REPOSITORY AUDIT & ARCHITECTURE REVIEW
+================================================================================
+
+2.1 Existing Tech Stack:
+--------------------------------------------------------------------------------
+- Frontend: React Native (Expo SDK 56, Expo Router v4 file-based routing)
+- Styling & Animations: React Native StyleSheet + React Native Reanimated
+- Data Fetching: TanStack React Query + 5-second interval polling
+- Current Backend: Python FastAPI (`backend/main.py`)
+- Current Database: SQLite (`backend/tiffinflow.db`) using SQLAlchemy ORM
+- Auth: Custom email/password with bcrypt hashing + AsyncStorage session storage
+- Notifications: Expo Local Notifications + FCM token stub
+- Reports/Export: Expo Print (HTML-to-PDF) + Expo Sharing
+- Deployed API: Render (`https://bite-lvdm.onrender.com/api`)
+
+2.2 Directory & Codebase Layout:
+--------------------------------------------------------------------------------
+/
+├── app/                        # Expo Router navigation routes
+│   ├── (admin)/                # Admin portal screens
+│   │   ├── dashboard.tsx       # Live stats, revenue, response rate, quick counts
+│   │   ├── orders.tsx          # Real-time today orders with search & category filters
+│   │   ├── payments.tsx        # Payment ledger (Pending/Paid/Overdue) with mark-as-paid
+│   │   ├── reports.tsx         # Weekly/Monthly reports & PDF export
+│   │   ├── settings.tsx        # Pricing (Veg/Non-Veg), cutoff time, office code
+│   │   └── users.tsx           # Team member management, deactivation
+│   ├── (auth)/                 # Authentication flow
+│   │   ├── login.tsx           # Email/Password login
+│   │   ├── signup.tsx          # Sign up as User (join code) or Admin (create office)
+│   │   ├── onboarding.tsx      # Intro slides explaining the platform
+│   │   ├── profile-setup.tsx   # Initial profile & default preference setup
+│   │   └── splash.tsx          # Animated splash screen
+│   ├── (user)/                 # Employee app screens
+│   │   ├── home.tsx            # Hero 1-tap Veg/Non-Veg/Skip card & countdown
+│   │   ├── history.tsx         # Monthly calendar view with color-coded meal days
+│   │   ├── analytics.tsx       # Spending chart + Veg/Non-Veg preference breakdown
+│   │   ├── meals.tsx           # Upcoming weekly meal planner
+│   │   └── profile.tsx         # User preferences, monthly budget, theme switcher
+│   ├── _layout.tsx             # Root layout with Theme, Auth, Office providers
+│   └── index.tsx               # Smart redirect controller (Role & Auth checks)
+│
+├── backend/                    # Python Backend
+│   ├── main.py                 # FastAPI endpoints + SQLAlchemy SQLite models
+│   ├── requirements.txt        # fastapi, uvicorn, sqlalchemy, pydantic, bcrypt
+│   └── tiffinflow.db           # SQLite database file
+│
+├── src/                        # Shared Frontend logic
+│   ├── components/             # Reusable UI & Feature components
+│   │   ├── features/           # MealSelectionCard, WeeklySummaryCard, etc.
+│   │   └── ui/                 # Button, Input, Card, Badge, Avatar, Spinner
+│   ├── constants/              # Colors, Spacing, Typography, App Constants
+│   ├── context/                # AuthContext, OfficeContext, ThemeContext
+│   ├── services/firebase/      # API client layer (mapped to Python FastAPI)
+│   ├── types/                  # Complete TypeScript definitions & Firestore interfaces
+│   └── utils/                  # Calculations (dates, prices, summaries, week/month)
+
+
+================================================================================
+3. CURRENT STATE: WHAT IS WORKING VS WHAT IS MISSING/BROKEN
+================================================================================
+
+3.1 What is Implemented & Working:
+--------------------------------------------------------------------------------
+ [x] Multi-Role Authentication: User signup (with Office Code) and Admin signup (creates new Office Code).
+ [x] 1-Tap Meal Selection: Users can select Veg / Non-Veg / Skip with instant UI confirmation.
+ [x] Cut-off Time Check: Logic checks if cut-off time (e.g. 19:00 / 7 PM) has passed.
+ [x] Admin Dashboard Analytics: Aggregates total orders, veg count, non-veg count, skipped, pending, revenue.
+ [x] Admin Orders Screen: Live filter tabs (All / Veg / Non-Veg / Skip) + real-time search.
+ [x] Payment Ledger: Tracks weekly payment obligations with paid/pending status toggles.
+ [x] User History Calendar: Monthly grid showing which days were Veg, Non-Veg, or Skipped with price totals.
+ [x] Weekly & Monthly Aggregations: Dynamic calculations for user expenditure.
+ [x] PDF Report Generation: Admin can export clean HTML-templated PDFs for caterers or accounting.
+
+3.2 Critical Weaknesses & Bottlenecks in Current Setup:
+--------------------------------------------------------------------------------
+ 1. Polling Instead of True Real-time:
+    - The client uses `setInterval(run, 5000)` (every 5 seconds) to fetch orders, dashboard stats, and payments.
+    - This creates unnecessary server load, battery drain on mobile, and delayed UI feedback.
+
+ 2. SQLite Database on Ephemeral Cloud Hosting:
+    - Storing `tiffinflow.db` locally in Render container without persistent disks causes database wipes on redeployments/restarts.
+    - SQLite lacks concurrency handling under heavy multi-user office load at 6:55 PM (rush hour before cutoff).
+
+ 3. Expo Mobile-Only Constraints:
+    - Users must install Expo Go or a custom APK/IPA to access BiteBuddy.
+    - For office environments, employees and admins prefer a zero-install Web link / PWA that they can pin to their phone home screen or open on a laptop.
+
+ 4. Mobile Notification Disconnect:
+    - Push notifications are currently stubbed or reliant on Expo push servers, which do not translate to Web/PWA push.
+    - No background Web Push (VAPID) service worker implemented.
+
+ 5. Architectural Inconsistency:
+    - Types, rules, and folder structure reference Firestore (`firestore.rules`, `services/firebase`), but runtime code actually talks to a custom SQLite FastAPI server.
+
+
+================================================================================
+4. WHY NEXT.JS + PWA IS THE SUPERIOR ARCHITECTURE
+================================================================================
+
+Transforming BiteBuddy into a Next.js Progressive Web App (PWA) delivers massive advantages:
+
+1. Zero Installation Friction (Universal Link):
+   - Office admins can share a simple link (`https://bitebuddy.app/join/CORP123`).
+   - Employees open the link in Chrome/Safari, tap "Add to Home Screen", and get a native-app-like icon without App Store / Play Store friction.
+
+2. Web Push Notifications (Standard VAPID / Service Worker):
+   - Works across Android Chrome, Windows/Mac Chrome/Edge, and iOS Safari (iOS 16.4+ supports Web Push for PWA home-screen apps).
+   - Sends background alerts even when the browser is closed:
+     * 10:00 AM Daily Lunch Reminder ("🍱 What's for lunch today?")
+     * 6:30 PM Cut-off Warning ("⏳ 30 mins left to confirm your meal!")
+     * 7:00 PM Admin Final Count Summary ("📦 24 Veg, 12 Non-Veg orders placed")
+     * Friday / End-of-Week Bill Alert ("💳 Your weekly tiffin bill: ₹420")
+
+3. Responsive Multi-Device Experience:
+   - Mobile View: Compact, bottom-navigation, 1-tap buttons optimized for thumbs.
+   - Desktop / Tablet View: Rich sidebar admin console for office managers to view orders on a big screen, export reports, and manage members.
+
+4. Serverless & Cost-Effective:
+   - Next.js hosted on Vercel / Cloudflare with serverless API routes or Supabase / PostgreSQL.
+   - Zero server maintenance, instant scaling, and sub-second global caching.
+
+
+================================================================================
+5. TARGET ARCHITECTURE: NEXT.JS PWA + WEB PUSH STACK
+================================================================================
+
+5.1 Recommended Modern Stack:
+--------------------------------------------------------------------------------
+- Framework: Next.js 15+ (App Router, Server Components & Server Actions)
+- PWA Engine: `@ducanh2912/next-pwa` or Serwist (Service Worker + Cache + Offline support)
+- Styling & UI: Tailwind CSS + Radix UI primitives + Lucide React icons + Framer Motion
+- Database & Backend: PostgreSQL (via Supabase or Prisma with Neon/Supabase)
+  * Multi-tenant office isolation (Row Level Security / office_id index)
+  * Realtime subscriptions via Supabase Realtime (eliminates 5s polling)
+- Authentication: Supabase Auth or NextAuth.js (v5) supporting Magic Link, Password, Google Auth
+- Push Notifications:
+  * Backend: `web-push` library with standard VAPID key pairs
+  * Frontend: Service Worker (`sw.js`) handling `push` and `notificationclick` events
+  * Database: `push_subscriptions` table storing user endpoint, p256dh, and auth keys
+- Cron Jobs: Vercel Cron or GitHub Actions (triggers auto-default meals at cutoff time)
+- Export / Reports: `@react-pdf/renderer` or `jspdf` + `xlsx` (Excel sheets for caterers)
+
+5.2 Database Schema (PostgreSQL):
+--------------------------------------------------------------------------------
+- `offices`: id, name, admin_id, veg_price, non_veg_price, cutoff_time, week_start_day, auto_default, code, created_at
+- `users`: id, name, phone, email, role, office_id, default_preference, is_active, created_at
+- `meals`: id, user_id, office_id, date (YYYY-MM-DD), meal_type (veg/non-veg/skip), status, price, is_auto_defaulted, confirmed_at
+- `payments`: id, user_id, office_id, amount, week_start, status (pending/paid/overdue), marked_paid_by_admin, created_at
+- `push_subscriptions`: id, user_id, endpoint, p256dh, auth, user_agent, created_at
+- `notification_logs`: id, office_id, user_id, type, title, body, sent_at, read
+
+
+================================================================================
+6. WEB PUSH NOTIFICATION ARCHITECTURE FOR NEXT.JS PWA
+================================================================================
+
+How Web Push operates in the PWA environment:
+
+1. User Permission & Registration:
+   - When user visits the PWA and logs in, show a clean prompt: "Enable Lunch Reminders".
+   - Browser requests `Notification.requestPermission()`.
+   - On grant, Service Worker calls `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: VAPID_PUBLIC_KEY })`.
+   - The generated PushSubscription JSON (endpoint + keys) is sent to Next.js API `/api/notifications/subscribe` and stored in PostgreSQL.
+
+2. Scheduled & Triggered Pushes:
+   - Daily Cron Job triggers at configured office reminder time (e.g. 10:00 AM).
+   - Cron API queries all active users in the office who haven't confirmed today's meal.
+   - `web-push` sends encrypted payload to their browser push endpoints.
+   - Service worker receives `push` event, displays native OS notification with action buttons:
+     [🥦 Veg (₹80)]   [🍗 Non-Veg (₹100)]   [⏭️ Skip]
+
+3. Actionable Push Notifications:
+   - User can tap an action button right inside the notification to confirm their meal without even opening the full app!
+   - Service worker handles the background fetch to `/api/meals/quick-confirm`.
+
+
+================================================================================
+7. STEP-BY-STEP MIGRATION & IMPLEMENTATION ROADMAP
+================================================================================
+
+PHASE 1: Project Setup & Core Design System
+  1. Initialize Next.js (App Router, TypeScript, Tailwind CSS).
+  2. Setup PWA configuration (`manifest.json`, app icons, service worker registration).
+  3. Implement responsive UI shell (Mobile bottom navigation + Desktop collapsible sidebar).
+  4. Create shared UI components (Cards, Badges, Buttons, Modal dialogs, Toast system).
+
+PHASE 2: Database, Auth & Realtime Engine
+  1. Setup PostgreSQL database schema (Offices, Users, Meals, Payments, Subscriptions).
+  2. Implement Authentication (Session management, Role-based route middleware `/admin` vs `/app`).
+  3. Replace HTTP polling with real-time events / WebSockets for live Admin dashboard count updates.
+
+PHASE 3: User Experience & Core Features
+  1. User Home Screen: Hero 1-tap Meal Confirmation Card with sound/vibration feedback and live countdown.
+  2. User History & Calendar: Interactive monthly calendar with color-coded day pills and detailed breakdown.
+  3. User Analytics: Visual spending graph (last 4 weeks) and Veg vs Non-Veg dietary ratio.
+  4. User Profile & Settings: Manage default preference (flexible/veg/non-veg), update phone/name, view monthly spending.
+
+PHASE 4: Admin Management & Caterer Tools
+  1. Real-time Dashboard: Today's Veg / Non-Veg head count, live revenue, response rate gauge.
+  2. Live Orders View: Searchable, filterable live order queue with user notes.
+  3. Payment Ledger: Weekly billing overview, mark paid/pending, payment receipts.
+  4. One-Click Caterer Sharing: Instant WhatsApp summary share ("Today's Count: 18 Veg, 7 Non-Veg") + PDF/Excel export.
+  5. Office Settings: Manage meal pricing, custom cut-off time, auto-default rules, join code regenerator.
+
+PHASE 5: Web Push Notifications & Background Automation
+  1. Generate VAPID key pairs and setup `web-push` handler.
+  2. Implement Service Worker (`sw.js`) push listener and actionable notification clicks.
+  3. Build in-app notification prompt banner.
+  4. Configure Vercel Cron jobs:
+     - Morning meal reminder (10:00 AM)
+     - Pre-cutoff warning (6:30 PM)
+     - Post-cutoff auto-default processor (7:01 PM)
+     - Friday weekly bill generation
+
+PHASE 6: Testing, Polish & Production Deployment
+  1. Test PWA installability on Android (Chrome), iOS (Safari), and Desktop (Chrome/Edge).
+  2. Test offline mode and Service Worker caching.
+  3. Test Web Push delivery across all target operating systems.
+  4. Deploy Next.js to Vercel and PostgreSQL to Supabase/Neon with custom domain.
+
+================================================================================
+END OF AUDIT & BLUEPRINT
+================================================================================

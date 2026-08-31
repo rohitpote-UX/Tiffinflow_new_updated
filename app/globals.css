@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-app: #FAF9F6;
+    --card-surface: #FFFFFF;
+    --text-primary: #191816;
+    --text-secondary: #737068;
+    --text-tertiary: #A8A49B;
+    --border-subtle: #EAE8E2;
+    --border-strong: #D6D3CB;
+  }
+
+  .dark {
+    --bg-app: #100F0E;
+    --card-surface: #191816;
+    --text-primary: #FAF9F6;
+    --text-secondary: #A8A49B;
+    --text-tertiary: #737068;
+    --border-subtle: #262522;
+    --border-strong: #3D3B36;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Tabular figures for alignment of prices, countdowns, and metrics */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Safe areas for mobile devices */
+.safe-bottom {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.safe-top {
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+
+/* Subtle glass surface */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dark .glass-panel {
+  background: rgba(25, 24, 22, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Smooth micro-interaction transitions */
+.transition-tactile {
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.15s ease,
+              background-color 0.15s ease;
+}
+
+.transition-tactile:active {
+  transform: scale(0.98);
+}
+
+/* Hide scrollbars cleanly */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

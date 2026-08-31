@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-reminder",
+      "schedule": "0 4 * * 1-5"
+    },
+    {
+      "path": "/api/cron/cutoff-warning",
+      "schedule": "30 12 * * 1-5"
+    },
+    {
+      "path": "/api/cron/auto-default",
+      "schedule": "1 13 * * 1-5"
+    },
+    {
+      "path": "/api/cron/weekly-summary",
+      "schedule": "30 11 * * 5"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+node_modules/
+/.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Local data & environment
+.bitebuddy_store.json
+.env*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo / Legacy
+.expo/
+web-build/
+expo-env.d.ts
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# OS
+.DS_Store
+Thumbs.db

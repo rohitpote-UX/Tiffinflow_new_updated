@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#FF6B35"/>
+  <circle cx="256" cy="256" r="180" fill="#FFFFFF" opacity="0.15"/>
+  <g transform="translate(106, 106) scale(0.6)">
+    <!-- Bento / Tiffin Box icon -->
+    <rect x="50" y="80" width="400" height="340" rx="40" fill="#FFFFFF" />
+    <rect x="80" y="120" width="150" height="110" rx="20" fill="#16A34A" /> <!-- Veg Green -->
+    <rect x="270" y="120" width="150" height="110" rx="20" fill="#DC2626" /> <!-- Non-Veg Red -->
+    <rect x="80" y="260" width="340" height="120" rx="20" fill="#FF8C42" /> <!-- Rice / Warm Orange -->
+  </g>
+</svg>
