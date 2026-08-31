@@ -113,13 +113,25 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({
       success: true,
       message: `✓ Joined ${office.name} successfully!`,
+      role: 'USER',
+      redirectUrl: '/app',
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: 'USER',
         officeId: office.id,
         officeName: office.name,
+      },
+      membership: {
+        role: 'USER',
+        defaultPreference,
+        isActive: true,
+      },
+      office: {
+        id: office.id,
+        name: office.name,
       },
     });
 

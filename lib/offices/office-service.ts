@@ -98,46 +98,48 @@ export class OfficeService {
     targetUserId: string
   ): Promise<{ user: User; membership: Membership }> {
     return new Promise((resolve, reject) => {
-      roleMutationLock = roleMutationLock.then(async () => {
-        try {
-          const currentAdmins = await this.getOfficeAdmins(officeId);
-          if (currentAdmins.length >= MAX_ADMINS_PER_OFFICE) {
-            throw new Error(`Cannot promote employee: Maximum limit of ${MAX_ADMINS_PER_OFFICE} administrators per office has already been reached.`);
+      roleMutationLock = roleMutationLock
+        .catch(() => {})
+        .then(async () => {
+          try {
+            const currentAdmins = await this.getOfficeAdmins(officeId);
+            if (currentAdmins.length >= MAX_ADMINS_PER_OFFICE) {
+              throw new Error(`Cannot promote employee: Maximum limit of ${MAX_ADMINS_PER_OFFICE} administrators per office has already been reached.`);
+            }
+
+            const targetMembership = localDb.memberships.find(
+              (m) => m.user_id === targetUserId && m.office_id === officeId && m.is_active
+            );
+            if (!targetMembership) {
+              throw new Error('Target user is not an active member of this office');
+            }
+
+            if (targetMembership.role === 'ADMIN') {
+              const targetUser = localDb.users.find((u) => u.id === targetUserId)!;
+              return resolve({ user: targetUser, membership: targetMembership });
+            }
+
+            const targetUser = localDb.users.find((u) => u.id === targetUserId);
+            if (!targetUser) throw new Error('User not found');
+
+            targetMembership.role = 'ADMIN';
+            targetMembership.updated_at = new Date().toISOString();
+            localDb.save();
+
+            await AuditService.log(
+              officeId,
+              'ADMIN_PROMOTED',
+              'USER',
+              actorUserId,
+              targetUserId,
+              { targetUserName: targetUser.name, targetUserEmail: targetUser.email }
+            );
+
+            resolve({ user: targetUser, membership: targetMembership });
+          } catch (err) {
+            reject(err);
           }
-
-          const targetMembership = localDb.memberships.find(
-            (m) => m.user_id === targetUserId && m.office_id === officeId && m.is_active
-          );
-          if (!targetMembership) {
-            throw new Error('Target user is not an active member of this office');
-          }
-
-          if (targetMembership.role === 'ADMIN') {
-            const targetUser = localDb.users.find((u) => u.id === targetUserId)!;
-            return resolve({ user: targetUser, membership: targetMembership });
-          }
-
-          const targetUser = localDb.users.find((u) => u.id === targetUserId);
-          if (!targetUser) throw new Error('User not found');
-
-          targetMembership.role = 'ADMIN';
-          targetMembership.updated_at = new Date().toISOString();
-          localDb.save();
-
-          await AuditService.log(
-            officeId,
-            'ADMIN_PROMOTED',
-            'USER',
-            actorUserId,
-            targetUserId,
-            { targetUserName: targetUser.name, targetUserEmail: targetUser.email }
-          );
-
-          resolve({ user: targetUser, membership: targetMembership });
-        } catch (err) {
-          reject(err);
-        }
-      });
+        });
     });
   }
 
@@ -151,12 +153,14 @@ export class OfficeService {
     targetUserId: string
   ): Promise<{ user: User; membership: Membership }> {
     return new Promise((resolve, reject) => {
-      roleMutationLock = roleMutationLock.then(async () => {
-        try {
-          const currentAdmins = await this.getOfficeAdmins(officeId);
-          if (currentAdmins.length <= 1) {
-            throw new Error('Cannot remove administrator: An office must have at least one active administrator.');
-          }
+      roleMutationLock = roleMutationLock
+        .catch(() => {})
+        .then(async () => {
+          try {
+            const currentAdmins = await this.getOfficeAdmins(officeId);
+            if (currentAdmins.length <= 1) {
+              throw new Error('Cannot remove administrator: An office must have at least one active administrator.');
+            }
 
           const targetMembership = localDb.memberships.find(
             (m) => m.user_id === targetUserId && m.office_id === officeId && m.is_active

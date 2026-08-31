@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { requireAdmin } from '@/lib/auth/session';
 import { localDb } from '@/lib/db';
 import { OfficeService } from '@/lib/offices/office-service';
 import { MealService } from '@/lib/meals/meal-service';
-import { getOfficeTomorrowDate, getOfficeCurrentDate, getCutoffCountdown } from '@/lib/utils/dates';
+import { getOfficeTomorrowDate, getCutoffCountdown } from '@/lib/utils/dates';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const { searchParams } = new URL(req.url);
     const office = await OfficeService.getOfficeById(session.officeId);
@@ -89,6 +86,9 @@ export async function GET(req: NextRequest) {
       pendingUsers,
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Admin dashboard error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

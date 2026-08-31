@@ -15,7 +15,8 @@ export default function RootLandingPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.authenticated) {
-          if (data.membership?.role === 'ADMIN') {
+          const role = data.role || data.user?.role || data.membership?.role;
+          if (role === 'ADMIN') {
             router.push('/admin');
           } else {
             router.push('/app');

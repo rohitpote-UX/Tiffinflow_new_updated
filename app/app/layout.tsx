@@ -1,8 +1,9 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Utensils, Calendar, CreditCard, User } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Utensils, Calendar, CreditCard, User, Loader2 } from 'lucide-react';
 import { PushPermissionBanner } from '@/components/pwa/PushPermissionBanner';
 
 const NAV_ITEMS = [
@@ -18,6 +19,32 @@ export default function EmployeeLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated) {
+          setUserProfile(data);
+        } else {
+          router.push('/login');
+        }
+      })
+      .catch(() => router.push('/login'))
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex flex-col items-center justify-center text-surface-500 font-sans">
+        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mb-3" />
+        <p className="text-xs font-medium tracking-tight">Loading BiteBuddy...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface-50 flex flex-col justify-between max-w-md mx-auto sm:border-x sm:border-surface-200/80 shadow-2xl relative font-sans">

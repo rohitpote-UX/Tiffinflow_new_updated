@@ -28,11 +28,15 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   }
 }
 
+export type SmartCutoffStage = 'ONE_HOUR' | 'THIRTY_MINUTES' | 'FIVE_MINUTES';
+
 export interface PushPayload {
   title: string;
   body: string;
   icon?: string;
   badge?: string;
+  tag?: string;
+  renotify?: boolean;
   data?: Record<string, any>;
   actions?: Array<{ action: string; title: string; icon?: string }>;
 }
@@ -224,6 +228,8 @@ export class NotificationService {
       const payload: PushPayload = {
         title,
         body,
+        tag: 'bitebuddy-meal-reminder',
+        renotify: true,
         data: { url: '/app', type: 'meal-opened', date: targetDate },
       };
 
@@ -251,7 +257,7 @@ export class NotificationService {
     const body = "You haven't chosen tomorrow's meal yet.";
 
     for (const mem of members) {
-      const meal = localDb.meals.find((m) => m.user_id === mem.user_id && m.date === date);
+      const meal = localDb.meals.find((m) => m.user_id === mem.user_id && m.date === date && m.status !== 'cancelled');
       if (!meal) {
         const idempotencyKey = `${officeId}_${mem.user_id}_${date}_daily-reminder`;
         if (this.checkIdempotency(idempotencyKey)) continue;
@@ -259,6 +265,8 @@ export class NotificationService {
         const payload: PushPayload = {
           title,
           body,
+          tag: 'bitebuddy-meal-reminder',
+          renotify: true,
           data: { url: '/app', type: 'daily-reminder', date },
         };
 
@@ -272,9 +280,107 @@ export class NotificationService {
   }
 
   /**
-   * Cutoff Warning (30m / 5m):
-   * 30m -> Title: ⏰ 30 minutes left | Body: Lunch selection closes at 7:00 PM.
-   * 5m  -> Title: 🚨 5 minutes left  | Body: Choose your meal before the cutoff.
+   * Smart Meal Cutoff Proactive Reminders:
+   * 
+   * 1 HOUR BEFORE:
+   * Title: 🍱 Tomorrow's lunch is waiting
+   * Body: You haven't picked your meal yet. Choose before 7:00 PM.
+   * 
+   * 30 MINUTES BEFORE:
+   * Title: ⏰ 30 minutes to go
+   * Body: Your lunch choice is still pending. Selection closes at 7:00 PM.
+   * 
+   * 5 MINUTES BEFORE:
+   * Title: 🍽️ Almost time
+   * Body: Just 5 minutes left to choose tomorrow's lunch.
+   * 
+   * Rules:
+   * 1. Only sent to active employees with active subscriptions who have NOT selected a meal for targetDate.
+   * 2. If a meal is confirmed, subsequent reminders are immediately aborted.
+   * 3. Idempotent key: `${officeId}_${userId}_${targetDate}_${stage}`.
+   * 4. Notification tag: `bitebuddy-meal-reminder` to collapse older alerts.
+   */
+  static async notifySmartCutoffStage(
+    officeId: string,
+    targetDate: string,
+    cutoffTime24h: string = '19:00',
+    stage: SmartCutoffStage
+  ): Promise<{ sentCount: number; skippedCount: number }> {
+    const formattedCutoff = formatCutoffDisplay(cutoffTime24h);
+    const members = localDb.memberships.filter((m) => m.office_id === officeId && m.is_active);
+    let sentCount = 0;
+    let skippedCount = 0;
+
+    let title: string;
+    let body: string;
+
+    switch (stage) {
+      case 'ONE_HOUR':
+        title = "🍱 Tomorrow's lunch is waiting";
+        body = `You haven't picked your meal yet. Choose before ${formattedCutoff}.`;
+        break;
+      case 'THIRTY_MINUTES':
+        title = "⏰ 30 minutes to go";
+        body = `Your lunch choice is still pending. Selection closes at ${formattedCutoff}.`;
+        break;
+      case 'FIVE_MINUTES':
+        title = "🍽️ Almost time";
+        body = "Just 5 minutes left to choose tomorrow's lunch.";
+        break;
+    }
+
+    for (const mem of members) {
+      // 1. Dynamic check: Has user already selected meal for targetDate?
+      const existingMeal = localDb.meals.find(
+        (m) => m.user_id === mem.user_id && m.date === targetDate && m.status !== 'cancelled'
+      );
+      if (existingMeal) {
+        skippedCount++;
+        continue; // User already chose -> STOP ALL FUTURE REMINDERS
+      }
+
+      // 2. Deterministic Idempotency check
+      const idempotencyKey = `${officeId}_${mem.user_id}_${targetDate}_${stage}`;
+      if (this.checkIdempotency(idempotencyKey)) {
+        skippedCount++;
+        continue; // Already delivered this stage today
+      }
+
+      // 3. Dispatch Web Push with notification grouping & deep link
+      const payload: PushPayload = {
+        title,
+        body,
+        tag: 'bitebuddy-meal-reminder',
+        renotify: true,
+        data: {
+          url: '/app',
+          type: `cutoff-${stage.toLowerCase()}`,
+          date: targetDate,
+          stage,
+        },
+      };
+
+      const result = await this.sendPushToUser(mem.user_id, payload);
+      this.logNotification(
+        mem.user_id,
+        officeId,
+        stage,
+        title,
+        body,
+        result.success ? 'sent' : 'failed',
+        idempotencyKey
+      );
+
+      if (result.success) {
+        sentCount++;
+      }
+    }
+
+    return { sentCount, skippedCount };
+  }
+
+  /**
+   * Cutoff Warning (Backwards compatible helper routing to SmartCutoffStage):
    */
   static async notifyCutoffWarning(
     officeId: string,
@@ -282,35 +388,9 @@ export class NotificationService {
     cutoffTime24h: string = '19:00',
     isUrgent: boolean = false
   ): Promise<{ sentCount: number }> {
-    const formattedCutoff = formatCutoffDisplay(cutoffTime24h);
-    const members = localDb.memberships.filter((m) => m.office_id === officeId && m.is_active);
-    let sentCount = 0;
-
-    const title = isUrgent ? '🚨 5 minutes left' : '⏰ 30 minutes left';
-    const body = isUrgent
-      ? 'Choose your meal before the cutoff.'
-      : `Lunch selection closes at ${formattedCutoff}.`;
-    const type = isUrgent ? 'urgent-cutoff-warning' : 'cutoff-warning';
-
-    for (const mem of members) {
-      const meal = localDb.meals.find((m) => m.user_id === mem.user_id && m.date === targetDate);
-      if (!meal) {
-        const idempotencyKey = `${officeId}_${mem.user_id}_${targetDate}_${type}`;
-        if (this.checkIdempotency(idempotencyKey)) continue;
-
-        const payload: PushPayload = {
-          title,
-          body,
-          data: { url: '/app', type, date: targetDate },
-        };
-
-        const result = await this.sendPushToUser(mem.user_id, payload);
-        this.logNotification(mem.user_id, officeId, type, title, body, result.success ? 'sent' : 'failed', idempotencyKey);
-        if (result.success) sentCount++;
-      }
-    }
-
-    return { sentCount };
+    const stage: SmartCutoffStage = isUrgent ? 'FIVE_MINUTES' : 'THIRTY_MINUTES';
+    const result = await this.notifySmartCutoffStage(officeId, targetDate, cutoffTime24h, stage);
+    return { sentCount: result.sentCount };
   }
 
   /**

@@ -52,7 +52,9 @@ export default function SignupPage() {
         throw new Error(data.error || 'Failed to create workspace');
       }
 
-      router.push('/admin');
+      const role = data.role || data.user?.role || data.membership?.role;
+      const targetDestination = data.redirectUrl || (role === 'ADMIN' ? '/admin' : '/app');
+      router.push(targetDestination);
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');

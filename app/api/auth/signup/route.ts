@@ -93,6 +93,8 @@ export async function POST(req: NextRequest) {
     localDb.memberships.push(newMembership);
     localDb.save();
 
+    const redirectUrl = role === 'ADMIN' ? '/admin' : '/app';
+
     // Generate Session Token
     const token = await createSessionToken({
       userId,
@@ -105,6 +107,8 @@ export async function POST(req: NextRequest) {
 
     const res = NextResponse.json({
       success: true,
+      role,
+      redirectUrl,
       user: {
         id: userId,
         name: newUser.name,
@@ -113,6 +117,16 @@ export async function POST(req: NextRequest) {
         role,
         officeId: targetOfficeId,
         officeName: resolvedOfficeName,
+      },
+      membership: {
+        id: newMembership.id,
+        role: newMembership.role,
+        defaultPreference: newMembership.default_preference,
+        isActive: newMembership.is_active,
+      },
+      office: {
+        id: targetOfficeId,
+        name: resolvedOfficeName,
       },
     });
 

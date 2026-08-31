@@ -44,8 +44,11 @@ export default function AdminLayout({
     fetch('/api/auth/me')
       .then((res) => res.json())
       .then((data) => {
-        if (data.authenticated && data.membership?.role === 'ADMIN') {
+        const role = data.role || data.user?.role || data.membership?.role;
+        if (data.authenticated && role === 'ADMIN') {
           setProfile(data);
+        } else if (data.authenticated) {
+          router.push('/app');
         } else {
           router.push('/login');
         }

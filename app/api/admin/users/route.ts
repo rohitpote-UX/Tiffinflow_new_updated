@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { requireAdmin } from '@/lib/auth/session';
 import { OfficeService } from '@/lib/offices/office-service';
 import { localDb } from '@/lib/db';
 import { AuditService } from '@/lib/audit/audit-service';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const members = await OfficeService.getOfficeMembers(session.officeId);
     return NextResponse.json({
@@ -26,6 +23,9 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Users fetch error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -33,10 +33,7 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const { userId } = await req.json();
     if (!userId) {
@@ -56,13 +53,16 @@ export async function DELETE(req: NextRequest) {
         session.officeId,
         'USER_DEACTIVATED',
         'USER',
-        session.userId,
+        session.id,
         userId
       );
     }
 
     return NextResponse.json({ success: true, message: 'User deactivated from office' });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('User delete error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

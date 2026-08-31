@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { requireAdmin } from '@/lib/auth/session';
 import { PaymentService } from '@/lib/payments/payment-service';
 import { PaymentMarkPaidSchema } from '@/lib/validators';
 import { AuditService } from '@/lib/audit/audit-service';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const body = await req.json();
     const parsed = PaymentMarkPaidSchema.safeParse(body);
@@ -18,13 +15,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { paymentId, notes } = parsed.data;
-    const payment = await PaymentService.markPaymentPaid(paymentId, session.userId, notes);
+    const payment = await PaymentService.markPaymentPaid(paymentId, session.id, notes);
 
     await AuditService.log(
       session.officeId,
       'PAYMENT_MARKED_PAID',
       'PAYMENT',
-      session.userId,
+      session.id,
       paymentId,
       { amount: payment.amount, notes }
     );
@@ -35,6 +32,9 @@ export async function POST(req: NextRequest) {
       message: '✓ Payment marked as paid. Receipt generated.',
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Payment verify error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

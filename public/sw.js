@@ -79,6 +79,8 @@ self.addEventListener('push', (event) => {
     title: '🍱 BiteBuddy Update',
     body: "Tomorrow's lunch is open. Tap to confirm your meal!",
     url: '/app',
+    tag: 'bitebuddy-meal-reminder',
+    renotify: true,
   };
 
   if (event.data) {
@@ -91,14 +93,17 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: '/icons/icon-192.png',
-    badge: '/icons/badge.png',
+    icon: data.icon || '/icons/icon-192.png',
+    badge: data.badge || '/icons/badge.png',
+    tag: data.tag || 'bitebuddy-meal-reminder',
+    renotify: data.renotify !== undefined ? data.renotify : true,
     vibrate: [100, 50, 100],
     data: {
-      url: data.url || '/app',
-      date: data.date,
+      url: (data.data && data.data.url) || data.url || '/app',
+      date: (data.data && data.data.date) || data.date,
+      stage: (data.data && data.data.stage) || data.stage,
     },
-    actions: [
+    actions: data.actions || [
       { action: 'confirm-veg', title: '🥦 Veg' },
       { action: 'confirm-nonveg', title: '🍗 Non-Veg' },
       { action: 'open-app', title: 'Open App' },

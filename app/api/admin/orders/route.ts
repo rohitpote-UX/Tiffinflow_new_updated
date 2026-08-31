@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
-import { localDb } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth/session';
 import { MealService } from '@/lib/meals/meal-service';
 import { OfficeService } from '@/lib/offices/office-service';
 import { getOfficeTomorrowDate } from '@/lib/utils/dates';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const { searchParams } = new URL(req.url);
     const office = await OfficeService.getOfficeById(session.officeId);
@@ -47,6 +43,9 @@ export async function GET(req: NextRequest) {
       orders,
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Admin orders error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

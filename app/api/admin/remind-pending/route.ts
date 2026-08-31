@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { requireAdmin } from '@/lib/auth/session';
 import { NotificationService } from '@/lib/notifications/notification-service';
 import { RemindPendingSchema } from '@/lib/validators';
 import { AuditService } from '@/lib/audit/audit-service';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const body = await req.json();
     const parsed = RemindPendingSchema.safeParse(body);
@@ -24,7 +21,7 @@ export async function POST(req: NextRequest) {
       session.officeId,
       'REMIND_PENDING_SENT',
       'MEAL',
-      session.userId,
+      session.id,
       date,
       { sentCount }
     );
@@ -35,6 +32,9 @@ export async function POST(req: NextRequest) {
       message: `🔔 Reminder notification sent to ${sentCount} pending employee(s).`,
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Remind pending error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -1,6 +1,9 @@
 /**
  * Authentication and Session Management for BiteBuddy 2.0
  * Uses bcryptjs for password hashing and jose for lightweight JWT session tokens
+ * 
+ * Provides unified, single source of truth for user identification,
+ * role authorization, and office membership verification.
  */
 
 import bcrypt from 'bcryptjs';
@@ -23,8 +26,21 @@ export interface SessionPayload {
   officeName: string;
 }
 
+export interface CurrentUser {
+  id: string;
+  userId: string;
+  email: string;
+  name: string;
+  phone: string;
+  role: 'ADMIN' | 'USER';
+  officeId: string;
+  officeName: string;
+  isActive: boolean;
+  defaultPreference?: 'flexible' | 'always-veg' | 'always-non-veg';
+}
+
 /**
- * Hash password securely with bcrypt salt
+ * Hash password securely with bcrypt salt (10 rounds)
  */
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
@@ -32,14 +48,14 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
- * Verify password against stored hash
+ * Verify password against stored hash with timing attack resistance
  */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
 /**
- * Create encrypted JWT session token
+ * Create encrypted JWT session token (30 days validity)
  */
 export async function createSessionToken(payload: SessionPayload): Promise<string> {
   return new SignJWT({ ...payload })
@@ -62,7 +78,7 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
 }
 
 /**
- * Get current session from Next.js cookies (Server Components / Route Handlers)
+ * Get current session token payload from Next.js cookies
  */
 export async function getSession(): Promise<SessionPayload | null> {
   try {
@@ -85,36 +101,72 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 /**
- * Server-side authorization check: Require valid authenticated session
+ * Get the fully verified, live database identity of the authenticated user
  */
-export async function requireAuth(): Promise<SessionPayload> {
+export async function getCurrentUser(): Promise<CurrentUser | null> {
   const session = await getSession();
-  if (!session) {
-    throw new Error('UNAUTHORIZED');
-  }
-  return session;
-}
+  if (!session) return null;
 
-/**
- * Server-side authorization check: Require Admin role (verified against live database membership)
- */
-export async function requireAdmin(): Promise<SessionPayload> {
-  const session = await requireAuth();
+  const user = localDb.users.find((u) => u.id === session.userId);
+  if (!user || !user.is_active) return null;
 
-  // Strict live database authorization verification
   const membership = localDb.memberships.find(
     (m) => m.user_id === session.userId && m.office_id === session.officeId && m.is_active
   );
+  if (!membership) return null;
 
-  if (!membership || membership.role !== 'ADMIN') {
-    throw new Error('FORBIDDEN');
-  }
+  const office = localDb.offices.find((o) => o.id === session.officeId);
+  const officeName = office?.name || session.officeName || 'Office Workspace';
 
-  return session;
+  return {
+    id: user.id,
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    role: membership.role as 'ADMIN' | 'USER',
+    officeId: membership.office_id,
+    officeName,
+    isActive: user.is_active && membership.is_active,
+    defaultPreference: membership.default_preference,
+  };
 }
 
 /**
- * Helper to fetch complete user, membership, and office profile for the active session
+ * Server-side authorization guard: Require valid active authenticated user
+ */
+export async function requireAuth(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error('UNAUTHORIZED');
+  }
+  return user;
+}
+
+/**
+ * Server-side authorization guard: Require Admin role verified against live database membership
+ */
+export async function requireAdmin(): Promise<CurrentUser> {
+  const user = await requireAuth();
+  if (user.role !== 'ADMIN') {
+    throw new Error('FORBIDDEN');
+  }
+  return user;
+}
+
+/**
+ * Server-side authorization guard: Require Employee (USER) role
+ */
+export async function requireEmployee(): Promise<CurrentUser> {
+  const user = await requireAuth();
+  if (user.role !== 'USER' && user.role !== 'ADMIN') {
+    throw new Error('FORBIDDEN');
+  }
+  return user;
+}
+
+/**
+ * Helper to fetch complete composite user, membership, and office profile
  */
 export async function getCurrentUserProfile(): Promise<{
   user: User | null;

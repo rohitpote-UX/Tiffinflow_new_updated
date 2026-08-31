@@ -30,11 +30,10 @@ export default function LoginPage() {
         throw new Error(data.error || 'Invalid credentials');
       }
 
-      if (data.membership?.role === 'ADMIN') {
-        router.push('/admin');
-      } else {
-        router.push('/app');
-      }
+      const role = data.role || data.user?.role || data.membership?.role;
+      const targetDestination = data.redirectUrl || (role === 'ADMIN' ? '/admin' : '/app');
+
+      router.push(targetDestination);
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');

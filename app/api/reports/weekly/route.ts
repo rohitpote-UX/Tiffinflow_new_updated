@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth/session';
+import { requireAdmin } from '@/lib/auth/session';
 import { ReportService } from '@/lib/reports/report-service';
 import { getWeekBoundaries, getOfficeCurrentDate } from '@/lib/utils/dates';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session || session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const { searchParams } = new URL(req.url);
     const currentDate = getOfficeCurrentDate();
@@ -28,6 +25,9 @@ export async function GET(req: NextRequest) {
       report: reportData,
     });
   } catch (err: any) {
+    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized: Admin role required' }, { status: 403 });
+    }
     console.error('Weekly report error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

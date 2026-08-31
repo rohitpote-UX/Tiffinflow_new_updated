@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const { email, password } = parsed.data;
     const user = localDb.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
-    if (!user || !user.password_hash) {
+    if (!user || !user.password_hash || !user.is_active) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
@@ -23,34 +23,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    // Find active membership
+    // Find active office membership
     const membership = localDb.memberships.find((m) => m.user_id === user.id && m.is_active);
     if (!membership) {
-      return NextResponse.json({ error: 'No active office membership found for this user.' }, { status: 403 });
+      return NextResponse.json({ error: 'No active office membership found for this account.' }, { status: 403 });
     }
 
     const office = localDb.offices.find((o) => o.id === membership.office_id);
-    const officeName = office?.name || 'Office';
+    const officeName = office?.name || 'Office Workspace';
+    const role = membership.role as 'ADMIN' | 'USER';
+    const redirectUrl = role === 'ADMIN' ? '/admin' : '/app';
 
     const token = await createSessionToken({
       userId: user.id,
       email: user.email,
       name: user.name,
-      role: membership.role as 'ADMIN' | 'USER',
+      role,
       officeId: membership.office_id,
       officeName,
     });
 
     const res = NextResponse.json({
       success: true,
+      role,
+      redirectUrl,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: membership.role,
+        role,
         officeId: membership.office_id,
         officeName,
+      },
+      membership: {
+        id: membership.id,
+        role: membership.role,
+        defaultPreference: membership.default_preference,
+        isActive: membership.is_active,
+      },
+      office: {
+        id: office?.id || membership.office_id,
+        name: officeName,
       },
     });
 
