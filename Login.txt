@@ -294,31 +294,64 @@ Route: /join/[code] (e.g. /join/BITE-7K4P)
 - Displays locked verified office banner.
 - Employee completes profile and enters /app in seconds.
 
-================================================================================
-8. LOGIN & SIGN-IN ENGINE
+=================================================================================
+8. LOGIN, SIGN-IN & RE-LOGIN LIFECYCLE ENGINE
 ================================================================================
 
 Route: POST /api/auth/login
 Page:  /login
 
 --------------------------------------------------------------------------------
-8.1. Standard Credentials Authentication
+8.1. Standard Credentials Authentication & Re-Login Protocol
 --------------------------------------------------------------------------------
-1. Client submits email and password.
-2. Server queries Users table by lowercase email.
-3. If user not found or is_active is false -> Returns HTTP 401 "Invalid email or password".
-4. Verifies password with bcrypt.compare().
-   - If mismatch -> Returns HTTP 401 "Invalid email or password".
-5. Queries Memberships table for active office membership:
-   - If no active membership found -> Returns HTTP 403 "No active office membership found for this account."
-6. Resolves user's role ('ADMIN' or 'USER') and office details.
-7. Computes redirectUrl: role === 'ADMIN' ? '/admin' : '/app'.
-8. Signs 30-day JWT and sets HTTP-only 'bitebuddy_session' cookie.
-9. Returns JSON: { success: true, role, redirectUrl, user, membership, office }.
-10. Frontend router navigates directly to targetDestination without hesitation.
+1. Client Form Submission:
+   - Form trims email (`email.trim()`) to prevent whitespace pollution from mobile autofill.
+   - Password is sent exactly as typed, preserving any deliberate spaces or symbols.
+   - Inputs and submit button are locked in loading state to prevent double-click race conditions.
+
+2. Schema Validation (LoginSchema):
+   - Email: String trimmed, validated as valid email format.
+   - Password: Min 1 character (Aligned with all signup schemas).
+   - If invalid format -> Returns HTTP 400 with "Please enter a valid email and password."
+
+3. Server-Side Email Normalization & Lookup:
+   - Email is normalized using `email.toLowerCase().trim()`.
+   - Queries database user record by normalized email.
+   - If user does not exist or password_hash is missing -> Returns HTTP 401: "Email or password is incorrect."
+   - If user is deactivated (`is_active === false`) -> Returns HTTP 401: "This account has been deactivated. Please contact your office administrator."
+
+4. Cryptographic Password Verification:
+   - Evaluates `bcrypt.compare(password, user.password_hash)`.
+   - If hash mismatch -> Returns HTTP 401: "Email or password is incorrect."
+   - (Uniform 401 response prevents user enumeration attacks).
+
+5. Workspace Membership & Role Resolution:
+   - Queries Memberships table for active workplace membership:
+     `memberships.find(m => m.user_id === user.id && m.is_active)`
+   - If no active membership found -> Returns HTTP 403: "No active workspace membership found for this account. Please join a workspace."
+   - Server strictly determines role ('ADMIN' or 'USER') from database membership.
+
+6. Session Token Generation:
+   - Signs cryptographic 30-day JWT token with payload:
+     `{ userId, email, name, role, officeId, officeName }`.
+   - Attaches 'bitebuddy_session' cookie with `httpOnly: true`, `sameSite: 'lax'`, `path: '/'`, `maxAge: 30 days`, and `secure: process.env.NODE_ENV === 'production'`.
+
+7. Deterministic Role-Based Routing:
+   - Returns `{ success: true, role, redirectUrl: role === 'ADMIN' ? '/admin' : '/app', user, membership, office }`.
+   - Client router immediately navigates to destination dashboard.
 
 --------------------------------------------------------------------------------
-8.2. 1-Tap Instant Demo Access
+8.2. Deterministic Sign Out / Logout Protocol
+--------------------------------------------------------------------------------
+Route: POST /api/auth/logout
+
+When user signs out:
+1. Server invalidates cookie: sets `expires: new Date(0)`, `maxAge: 0`, `path: '/'`, `httpOnly: true`, `sameSite: 'lax'`, `secure: production`.
+2. Database user record, workspace membership, meal history, and preferences remain permanently intact.
+3. User can immediately re-login with the same credentials at any time.
+
+--------------------------------------------------------------------------------
+8.3. 1-Tap Instant Demo Access
 --------------------------------------------------------------------------------
 - "Admin Mode" -> Logs in as admin@bitebuddy.app / password -> Opens /admin
 - "Employee Mode" -> Logs in as employee@bitebuddy.app / password -> Opens /app

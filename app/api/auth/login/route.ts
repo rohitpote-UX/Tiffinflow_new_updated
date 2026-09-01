@@ -8,25 +8,39 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = LoginSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+      const firstError = parsed.error.issues[0]?.message || 'Please enter a valid email and password.';
+      return NextResponse.json({ error: firstError }, { status: 400 });
     }
 
     const { email, password } = parsed.data;
-    const user = localDb.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.toLowerCase().trim();
 
-    if (!user || !user.password_hash || !user.is_active) {
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    // Query user by normalized email
+    const user = localDb.users.find((u) => u.email.toLowerCase().trim() === cleanEmail);
+
+    if (!user || !user.password_hash) {
+      return NextResponse.json({ error: 'Email or password is incorrect.' }, { status: 401 });
+    }
+
+    if (!user.is_active) {
+      return NextResponse.json(
+        { error: 'This account has been deactivated. Please contact your office administrator.' },
+        { status: 401 }
+      );
     }
 
     const isMatch = await verifyPassword(password, user.password_hash);
     if (!isMatch) {
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+      return NextResponse.json({ error: 'Email or password is incorrect.' }, { status: 401 });
     }
 
     // Find active office membership
     const membership = localDb.memberships.find((m) => m.user_id === user.id && m.is_active);
     if (!membership) {
-      return NextResponse.json({ error: 'No active office membership found for this account.' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'No active workspace membership found for this account. Please join a workspace.' },
+        { status: 403 }
+      );
     }
 
     const office = localDb.offices.find((o) => o.id === membership.office_id);
@@ -79,6 +93,6 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (err: any) {
     console.error('Login error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
   }
 }

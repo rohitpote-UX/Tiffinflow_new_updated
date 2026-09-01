@@ -16,18 +16,24 @@ export default function LoginPage() {
 
   const executeLogin = async (loginEmail: string, loginPass: string) => {
     setError('');
+    const cleanEmail = loginEmail.trim();
+    if (!cleanEmail || !loginPass) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPass }),
+        body: JSON.stringify({ email: cleanEmail, password: loginPass }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Invalid credentials');
+        throw new Error(data.error || 'Email or password is incorrect.');
       }
 
       const role = data.role || data.user?.role || data.membership?.role;
@@ -138,8 +144,12 @@ export default function LoginPage() {
               label="Work Email"
               type="email"
               required
+              disabled={loading}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (error) setError('');
+              }}
               placeholder="rohit@company.com"
             />
 
@@ -147,8 +157,12 @@ export default function LoginPage() {
               label="Password"
               type="password"
               required
+              disabled={loading}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError('');
+              }}
               placeholder="••••••••"
             />
 

@@ -2,27 +2,41 @@ import { z } from 'zod';
 
 // ── Auth Schemas ───────────────────────────────────────────────────────
 export const LoginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Please enter your email address')
+    .email('Please enter a valid email address'),
+  password: z
+    .string()
+    .min(1, 'Please enter your password'),
 });
 
 export const SignupSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.string().email('Please enter a valid email address'),
-  phone: z.string().min(6, 'Please enter a valid phone number').max(25),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Please enter your email address')
+    .email('Please enter a valid email address'),
+  phone: z.string().trim().min(6, 'Please enter a valid phone number').max(25),
   password: z.string().min(4, 'Password must be at least 4 characters'),
   role: z.enum(['ADMIN', 'USER']).optional().default('ADMIN'),
-  officeName: z.string().min(2, 'Please enter an office name').optional(),
-  officeCodeOrName: z.string().min(2).optional(),
+  officeName: z.string().trim().min(2, 'Please enter an office name').optional(),
+  officeCodeOrName: z.string().trim().min(2).optional(),
   defaultPreference: z.enum(['flexible', 'always-veg', 'always-non-veg']).default('flexible'),
 });
 
 export const JoinOfficeSchema = z.object({
-  joinCode: z.string().min(3, 'Invalid join code format').max(32),
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
-  phone: z.string().min(8, 'Phone number must be at least 8 digits'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  joinCode: z.string().trim().min(3, 'Invalid join code format').max(32),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters'),
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Please enter your email address')
+    .email('Please enter a valid email address'),
+  phone: z.string().trim().min(6, 'Phone number must be at least 6 digits'),
+  password: z.string().min(4, 'Password must be at least 4 characters'),
   defaultPreference: z.enum(['flexible', 'always-veg', 'always-non-veg']).default('flexible'),
 });
 
